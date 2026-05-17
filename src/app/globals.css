@@ -1,26 +1,85 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --sunburst: oklch(0.75 0.16 70);
+  --terracotta: oklch(0.58 0.12 45);
+  --desert-sage: oklch(0.72 0.06 155);
+  --dusk-indigo: oklch(0.42 0.12 280);
+  --warm-sand: oklch(0.95 0.015 80);
+  --cream-wash: oklch(0.97 0.008 85);
+  --stone: oklch(0.55 0.01 70);
+  --charcoal: oklch(0.25 0.01 70);
+
+  --cat-produce-bg: oklch(0.92 0.04 155);
+  --cat-produce-text: oklch(0.35 0.06 155);
+  --cat-eggs-bg: oklch(0.92 0.06 70);
+  --cat-eggs-text: oklch(0.35 0.1 70);
+  --cat-flowers-bg: oklch(0.92 0.05 25);
+  --cat-flowers-text: oklch(0.38 0.08 25);
+  --cat-seeds-bg: oklch(0.9 0.04 45);
+  --cat-seeds-text: oklch(0.38 0.08 45);
+  --cat-tools-bg: oklch(0.9 0.04 280);
+  --cat-tools-text: oklch(0.35 0.08 280);
+  --cat-events-bg: oklch(0.9 0.08 70);
+  --cat-events-text: oklch(0.32 0.12 70);
+  --cat-general-bg: oklch(0.92 0.008 70);
+  --cat-general-text: oklch(0.4 0.01 70);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-sunburst: var(--sunburst);
+  --color-terracotta: var(--terracotta);
+  --color-desert-sage: var(--desert-sage);
+  --color-dusk-indigo: var(--dusk-indigo);
+  --color-warm-sand: var(--warm-sand);
+  --color-cream-wash: var(--cream-wash);
+  --color-stone: var(--stone);
+  --color-charcoal: var(--charcoal);
+  --font-display: 'DM Serif Display', Georgia, serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--warm-sand);
+  color: var(--charcoal);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
+
+.font-display {
+  font-family: 'DM Serif Display', Georgia, serif;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-up-delay-1 { animation-delay: 0.05s; opacity: 0; }
+.animate-fade-up-delay-2 { animation-delay: 0.1s; opacity: 0; }
+.animate-fade-up-delay-3 { animation-delay: 0.15s; opacity: 0; }
+.animate-fade-up-delay-4 { animation-delay: 0.2s; opacity: 0; }
+.animate-fade-up-delay-5 { animation-delay: 0.25s; opacity: 0; }
