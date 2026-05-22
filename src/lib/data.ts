@@ -1,5 +1,9 @@
 export type Category = "produce" | "eggs" | "flowers" | "seeds" | "tools" | "events" | "general";
 
+export type ListingCategory = "home_garden" | "furniture" | "tools" | "equestrian" | "electronics" | "vehicles" | "other";
+
+export type ListingCondition = "new" | "like_new" | "good" | "fair";
+
 export interface Post {
   id: string;
   author: { name: string; avatar: string; address: string };
@@ -13,6 +17,20 @@ export interface Post {
   claimed?: boolean;
 }
 
+export interface Listing {
+  id: string;
+  seller: { name: string; avatar: string; section: string };
+  title: string;
+  description: string;
+  price: number | null;
+  isFree: boolean;
+  condition: ListingCondition;
+  category: ListingCategory;
+  image?: string;
+  status: "available" | "sold" | "pending";
+  timestamp: string;
+}
+
 export interface Event {
   id: string;
   title: string;
@@ -22,6 +40,7 @@ export interface Event {
   description: string;
   attendees: number;
   author: { name: string; avatar: string };
+  image?: string;
 }
 
 export interface Notification {
@@ -52,6 +71,54 @@ export const CATEGORY_EMOJI: Record<Category, string> = {
   events: "\u{1F389}",
   general: "\u{1F4AC}",
 };
+
+export const LISTING_CATEGORY_LABELS: Record<ListingCategory, string> = {
+  home_garden: "Home & Garden",
+  furniture: "Furniture",
+  tools: "Tools",
+  equestrian: "Equestrian",
+  electronics: "Electronics",
+  vehicles: "Vehicles",
+  other: "Other",
+};
+
+export const LISTING_CATEGORY_EMOJI: Record<ListingCategory, string> = {
+  home_garden: "\u{1F3E1}",
+  furniture: "\u{1FA91}",
+  tools: "\u{1F6E0}\u{FE0F}",
+  equestrian: "\u{1F40E}",
+  electronics: "\u{1F4F1}",
+  vehicles: "\u{1F69C}",
+  other: "\u{1F4E6}",
+};
+
+export const LISTING_CONDITION_LABELS: Record<ListingCondition, string> = {
+  new: "New",
+  like_new: "Like New",
+  good: "Good",
+  fair: "Fair",
+};
+
+export interface Message {
+  id: string;
+  senderId: string;
+  recipientId: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface Conversation {
+  otherUser: {
+    id: string;
+    name: string;
+    avatarInitials: string;
+    section: string;
+  };
+  lastMessage: string;
+  lastMessageAt: string;
+  unreadCount: number;
+}
 
 export const MOCK_POSTS: Post[] = [
   {

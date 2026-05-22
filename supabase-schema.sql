@@ -75,14 +75,14 @@ create table public.notifications (
 
 -- Row Level Security policies
 
--- Profiles: anyone can read approved profiles, only own profile can be updated
+-- Profiles: users can see their own profile or any approved profile
 alter table public.profiles enable row level security;
 
-create policy "Approved profiles are visible to approved users"
+create policy "Users can see own and approved profiles"
   on public.profiles for select
   using (
-    status = 'approved'
-    or id = auth.uid()
+    id = auth.uid()
+    or status = 'approved'
   );
 
 create policy "Users can update own profile"
@@ -93,24 +93,15 @@ create policy "Users can insert own profile"
   on public.profiles for insert
   with check (id = auth.uid());
 
--- Admins can update any profile (for approvals)
+-- Admins can update any profile (for approvals). Uses a subquery on profiles
+-- which is safe because the SELECT policy above doesn't self-reference.
 create policy "Admins can update any profile"
   on public.profiles for update
   using (
-    exists (
-      select 1 from public.profiles
-      where id = auth.uid() and role = 'admin'
-    )
-  );
-
--- Admins can see all profiles (including pending)
-create policy "Admins can see all profiles"
-  on public.profiles for select
-  using (
-    exists (
-      select 1 from public.profiles
-      where id = auth.uid() and role = 'admin'
-    )
+    id = auth.uid()
+    or (
+      select role from public.profiles where id = auth.uid()
+    ) = 'admin'
   );
 
 -- Posts: only approved users can read/create
@@ -238,3 +229,115 @@ create policy "Users can update own notifications"
 create policy "Service can insert notifications"
   on public.notifications for insert
   with check (true);
+
+-- Listings table (marketplace)
+create table public.listings (
+  id uuid default gen_random_uuid() primary key,
+  seller_id uuid references public.profiles(id) on delete cascade not null,
+  title text not null,
+  description text not null default '',
+  price decimal(10,2),
+  is_free boolean not null default false,
+  condition text not null default 'good' check (condition in ('new', 'like_new', 'good', 'fair')),
+  category text not null check (category in ('home_garden', 'furniture', 'tools', 'equestrian', 'electronics', 'vehicles', 'other')),
+  image_url text,
+  status text not null default 'available' check (status in ('available', 'sold', 'pending')),
+  created_at timestamptz not null default now()
+);
+
+alter table public.listings enable row level security;
+
+create policy "Approved users can read listings"
+  on public.listings for select
+  using (
+    exists (
+      select 1 from public.profiles
+      where id = auth.uid() and status = 'approved'
+    )
+  );
+
+create policy "Approved users can create listings"
+  on public.listings for insert
+  with check (
+    seller_id = auth.uid()
+    and exists (
+      select 1 from public.profiles
+      where id = auth.uid() and status = 'approved'
+    )
+  );
+
+create policy "Sellers can update own listings"
+  on public.listings for update
+  using (seller_id = auth.uid());
+
+create policy "Sellers can delete own listings"
+  on public.listings for delete
+  using (seller_id = auth.uid());
+
+-- Listing images table (multiple photos per listing)
+create table public.listing_images (
+  id uuid default gen_random_uuid() primary key,
+  listing_id uuid references public.listings(id) on delete cascade not null,
+  image_url text not null,
+  position int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+alter table public.listing_images enable row level security;
+
+create policy "Approved users can read listing images"
+  on public.listing_images for select
+  using (
+    exists (
+      select 1 from public.profiles
+      where id = auth.uid() and status = 'approved'
+    )
+  );
+
+create policy "Approved users can insert listing images"
+  on public.listing_images for insert
+  with check (
+    exists (
+      select 1 from public.listings
+      where id = listing_id and seller_id = auth.uid()
+    )
+  );
+
+create policy "Sellers can delete own listing images"
+  on public.listing_images for delete
+  using (
+    exists (
+      select 1 from public.listings
+      where id = listing_id and seller_id = auth.uid()
+    )
+  );
+
+-- Messages table (direct messaging)
+create table public.messages (
+  id uuid default gen_random_uuid() primary key,
+  sender_id uuid references public.profiles(id) on delete cascade not null,
+  recipient_id uuid references public.profiles(id) on delete cascade not null,
+  body text not null,
+  read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+alter table public.messages enable row level security;
+
+create policy "Users can read own messages"
+  on public.messages for select
+  using (sender_id = auth.uid() or recipient_id = auth.uid());
+
+create policy "Approved users can send messages"
+  on public.messages for insert
+  with check (
+    sender_id = auth.uid()
+    and exists (
+      select 1 from public.profiles
+      where id = auth.uid() and status = 'approved'
+    )
+  );
+
+create policy "Recipients can update messages"
+  on public.messages for update
+  using (recipient_id = auth.uid());

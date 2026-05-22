@@ -15,20 +15,19 @@ const tabs = [
     ),
   },
   {
-    label: "Events",
-    href: "/events",
+    label: "Market",
+    href: "/market",
     icon: (active: boolean) => (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "var(--sunburst)" : "var(--stone)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-        <line x1="16" y1="2" x2="16" y2="6" />
-        <line x1="8" y1="2" x2="8" y2="6" />
-        <line x1="3" y1="10" x2="21" y2="10" />
+        <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <path d="M16 10a4 4 0 0 1-8 0" />
       </svg>
     ),
   },
   {
     label: "Post",
-    href: "/post",
+    href: "/new",
     isCreate: true,
     icon: (_active: boolean) => (
       <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "var(--sunburst)" }}>
@@ -40,13 +39,11 @@ const tabs = [
     ),
   },
   {
-    label: "Alerts",
-    href: "/notifications",
-    badge: 2,
+    label: "Messages",
+    href: "/messages",
     icon: (active: boolean) => (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "var(--sunburst)" : "var(--stone)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
       </svg>
     ),
   },
@@ -96,12 +93,12 @@ export default function BottomNav() {
                 )}
                 <div className="relative">
                   {tab.icon(active)}
-                  {tab.badge && (
+                  {(tab as any).badge && (
                     <span
                       className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center"
                       style={{ background: "var(--terracotta)", color: "var(--cream-wash)" }}
                     >
-                      {tab.badge}
+                      {(tab as any).badge}
                     </span>
                   )}
                 </div>

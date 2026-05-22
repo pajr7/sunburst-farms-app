@@ -1,11 +1,11 @@
 {
-  "name": "Sunburst Farms",
+  "name": "Sunburst Farms East",
   "short_name": "Sunburst",
   "description": "Your neighborhood, connected.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f0ead8",
-  "theme_color": "#e8a849",
+  "background_color": "#2a3d2e",
+  "theme_color": "#2a3d2e",
   "orientation": "portrait",
   "icons": [
     {
@@ -17,6 +17,12 @@
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
