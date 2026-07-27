@@ -139,6 +139,18 @@ function SideNav() {
           </span>
         </Link>
         <Link
+          href="/dues"
+          className="flex items-center gap-3 px-4 py-2.5 rounded-xl transition-colors"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+            <line x1="1" y1="10" x2="23" y2="10" />
+          </svg>
+          <span className="text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
+            Pay Dues
+          </span>
+        </Link>
+        <Link
           href="/notifications"
           className="flex items-center gap-3 px-4 py-2.5 rounded-xl transition-colors"
         >
