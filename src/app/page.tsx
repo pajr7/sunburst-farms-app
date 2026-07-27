@@ -18,6 +18,11 @@ const SHORTCUTS = [
 
 const FILTER_CATEGORIES: (Category | "all")[] = [
   "all",
+  "safety",
+  "lost_found",
+  "free",
+  "recommendation",
+  "help",
   "produce",
   "eggs",
   "flowers",

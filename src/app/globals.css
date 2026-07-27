@@ -33,6 +33,16 @@
   --cat-events-text: oklch(0.38 0.08 310);
   --cat-general-bg: oklch(0.94 0.008 60);
   --cat-general-text: oklch(0.42 0.02 60);
+  --cat-lost_found-bg: oklch(0.94 0.035 60);
+  --cat-lost_found-text: oklch(0.42 0.09 60);
+  --cat-safety-bg: oklch(0.94 0.035 25);
+  --cat-safety-text: oklch(0.45 0.14 25);
+  --cat-free-bg: oklch(0.94 0.035 145);
+  --cat-free-text: oklch(0.38 0.09 145);
+  --cat-recommendation-bg: oklch(0.94 0.03 240);
+  --cat-recommendation-text: oklch(0.40 0.09 240);
+  --cat-help-bg: oklch(0.94 0.03 290);
+  --cat-help-text: oklch(0.42 0.09 290);
 }
 
 @theme inline {

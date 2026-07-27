@@ -8,7 +8,19 @@ import { useAuth } from "@/lib/auth-context";
 
 import AuthGuard from "@/components/AuthGuard";
 
-const POST_CATEGORIES: Category[] = ["produce", "eggs", "flowers", "seeds", "tools", "events", "general"];
+const POST_CATEGORIES: Category[] = [
+  "produce",
+  "eggs",
+  "flowers",
+  "seeds",
+  "tools",
+  "safety",
+  "lost_found",
+  "free",
+  "recommendation",
+  "help",
+  "general",
+];
 
 export default function CreatePostPage() {
   const [category, setCategory] = useState<Category | null>(null);

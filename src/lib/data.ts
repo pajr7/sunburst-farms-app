@@ -1,4 +1,16 @@
-export type Category = "produce" | "eggs" | "flowers" | "seeds" | "tools" | "events" | "general";
+export type Category =
+  | "produce"
+  | "eggs"
+  | "flowers"
+  | "seeds"
+  | "tools"
+  | "events"
+  | "general"
+  | "lost_found"
+  | "safety"
+  | "free"
+  | "recommendation"
+  | "help";
 
 export type ListingCategory = "home_garden" | "furniture" | "tools" | "equestrian" | "electronics" | "vehicles" | "other";
 
@@ -60,6 +72,11 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   tools: "Tools",
   events: "Events",
   general: "General",
+  lost_found: "Lost & Found",
+  safety: "Safety",
+  free: "Free Stuff",
+  recommendation: "Recommendations",
+  help: "Help Needed",
 };
 
 export const CATEGORY_EMOJI: Record<Category, string> = {
@@ -70,6 +87,11 @@ export const CATEGORY_EMOJI: Record<Category, string> = {
   tools: "\u{1F527}",
   events: "\u{1F389}",
   general: "\u{1F4AC}",
+  lost_found: "\u{1F436}",
+  safety: "\u{1F6A8}",
+  free: "\u{1F381}",
+  recommendation: "\u{1F44D}",
+  help: "\u{1F91D}",
 };
 
 export const LISTING_CATEGORY_LABELS: Record<ListingCategory, string> = {
