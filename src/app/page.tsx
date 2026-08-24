@@ -9,6 +9,7 @@ import PostCard from "@/components/PostCard";
 import AuthGuard from "@/components/AuthGuard";
 
 const SHORTCUTS = [
+  { label: "News", href: "/news", emoji: "\u{1F4F0}" },
   { label: "Events", href: "/events", emoji: "\u{1F389}" },
   { label: "Vendors", href: "/vendors", emoji: "\u{2B50}" },
   { label: "Real Estate", href: "/realestate", emoji: "\u{1F3E0}" },
