@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import AuthGuard from "@/components/AuthGuard";
 import PageHeader from "@/components/ui/PageHeader";
 import Icon from "@/components/ui/Icon";
+import SourceLogo from "@/components/ui/SourceLogo";
 import EmptyState from "@/components/ui/EmptyState";
 import { Panel, Spinner, Notice, timeAgo } from "@/components/ui/Primitives";
 import type { NewsItem, SourceSummary, SourceKind, Group } from "@/lib/newsSources";
@@ -65,21 +66,27 @@ function ViewTab({ active, onClick, children, tone = "default" }: { active: bool
   );
 }
 
-function SourceChip({ active, onClick, children, title }: { active: boolean; onClick: () => void; children: React.ReactNode; title?: string }) {
+/** Logo-first source picker: the outlet's icon with a small label underneath. */
+function SourceChip({ active, onClick, label, logo, name }: { active: boolean; onClick: () => void; label: string; logo?: string; name: string }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      title={title}
+      title={name}
       aria-pressed={active}
-      className="shrink-0 px-3 h-8 rounded-md text-[13px] font-semibold whitespace-nowrap transition-colors"
-      style={{
-        background: active ? "var(--primary-soft)" : "transparent",
-        color: active ? "var(--primary-soft-text)" : "var(--text-2)",
-        border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
-      }}
+      aria-label={name}
+      className="shrink-0 flex flex-col items-center gap-1 w-[64px] py-1 rounded-lg transition-colors"
+      style={{ background: active ? "var(--primary-soft)" : "transparent" }}
     >
-      {children}
+      <span
+        className="rounded-xl p-[3px]"
+        style={{ boxShadow: active ? "0 0 0 2px var(--primary)" : "0 0 0 1px var(--border)", background: "var(--surface)" }}
+      >
+        <SourceLogo src={logo} name={name} size={40} rounded={9} />
+      </span>
+      <span className="text-[11px] font-semibold leading-tight text-center truncate w-full px-0.5" style={{ color: active ? "var(--primary-soft-text)" : "var(--text-2)" }}>
+        {label}
+      </span>
     </button>
   );
 }
@@ -155,17 +162,28 @@ export default function NewsPage() {
             )}
           </div>
           {!loading && chipSources.length > 0 && (
-            <div role="group" aria-label="Source" className="flex gap-1.5 overflow-x-auto hide-scrollbar -mx-4 px-4 md:-mx-6 md:px-6 mt-2 items-center">
-              <SourceChip active={sourceId === null} onClick={() => setSourceId(null)}>{view === "sports" ? "All sports" : "Every source"}</SourceChip>
+            <div role="group" aria-label="Source" className="flex gap-1 overflow-x-auto hide-scrollbar -mx-4 px-4 md:-mx-6 md:px-6 mt-2 items-start">
+              <button
+                type="button"
+                onClick={() => setSourceId(null)}
+                aria-pressed={sourceId === null}
+                className="shrink-0 flex flex-col items-center gap-1 w-[64px] py-1 rounded-lg transition-colors"
+                style={{ background: sourceId === null ? "var(--primary-soft)" : "transparent" }}
+              >
+                <span className="w-[46px] h-[46px] rounded-xl flex items-center justify-center" style={{ background: sourceId === null ? "var(--primary)" : "var(--surface-2)", color: sourceId === null ? "var(--text-on-primary)" : "var(--text-2)", boxShadow: sourceId === null ? "0 0 0 2px var(--primary)" : "0 0 0 1px var(--border)" }}>
+                  <Icon name={view === "sports" ? "star" : "newspaper"} size={22} />
+                </span>
+                <span className="text-[11px] font-semibold leading-tight" style={{ color: sourceId === null ? "var(--primary-soft-text)" : "var(--text-2)" }}>
+                  All
+                </span>
+              </button>
               {chipSources.map((s, i) => {
                 const prev = chipSources[i - 1];
                 const newKind = view === "sports" && prev && prev.kind !== s.kind;
                 return (
-                  <span key={s.id} className="flex items-center gap-1.5 shrink-0">
-                    {newKind && <span className="w-px h-4 mx-0.5" style={{ background: "var(--border-strong)" }} aria-hidden />}
-                    <SourceChip active={sourceId === s.id} onClick={() => setSourceId((cur) => (cur === s.id ? null : s.id))} title={s.name}>
-                      {s.short}
-                    </SourceChip>
+                  <span key={s.id} className="flex items-start shrink-0">
+                    {newKind && <span className="w-px h-10 mx-1 mt-1.5" style={{ background: "var(--border-strong)" }} aria-hidden />}
+                    <SourceChip active={sourceId === s.id} onClick={() => setSourceId((cur) => (cur === s.id ? null : s.id))} label={s.short} logo={s.logo} name={s.name} />
                   </span>
                 );
               })}
@@ -202,13 +220,15 @@ export default function NewsPage() {
                     {visible.map((item) => {
                       const isAlert = item.group === "alert";
                       const bylineId = sourceId && item.sources.includes(sourceId) ? sourceId : item.source;
-                      const byline = sources.find((s) => s.id === bylineId)?.short ?? item.sourceName;
+                      const bylineSource = sources.find((s) => s.id === bylineId);
+                      const byline = bylineSource?.short ?? item.sourceName;
                       return (
                         <li key={item.link + item.title} className="ui-row">
                           <a href={item.link} target="_blank" rel="noopener noreferrer" className="flex gap-3.5 px-4 py-3.5 active:bg-[var(--surface-2)]">
                             <span className="flex-1 min-w-0">
-                              <span className="flex items-center gap-2 mb-1 text-[13px]">
-                                <span className="font-bold" style={{ color: isAlert ? (severityTone(item.severity) === "danger" ? "var(--danger)" : "var(--warning)") : "var(--primary)" }}>
+                              <span className="flex items-center gap-2 mb-1.5 text-[13px]">
+                                {!isAlert && <SourceLogo src={bylineSource?.logo ?? item.logo} name={byline} size={22} rounded={6} />}
+                                <span className="font-bold" style={{ color: isAlert ? (severityTone(item.severity) === "danger" ? "var(--danger)" : "var(--warning)") : "var(--text-2)" }}>
                                   {isAlert ? "NWS alert" : byline}
                                 </span>
                                 <span style={{ color: "var(--text-3)" }}>{isAlert && item.expiresAt ? untilTime(item.expiresAt) : timeAgo(item.publishedAt)}</span>

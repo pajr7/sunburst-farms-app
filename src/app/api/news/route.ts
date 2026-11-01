@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SOURCES, groupOf, type Source, type Feed, type NewsItem } from "@/lib/newsSources";
+import { SOURCES, groupOf, sourceLogo, type Source, type Feed, type NewsItem } from "@/lib/newsSources";
 
 // ~40 feeds fetched in parallel; give the function room on a slow morning.
 export const maxDuration = 30;
@@ -75,8 +75,8 @@ function toIso(raw: string): string {
   return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
 }
 
-function base(src: Source): Pick<NewsItem, "source" | "sourceName" | "sources" | "kind" | "group"> {
-  return { source: src.id, sourceName: src.name, sources: [src.id], kind: src.kind, group: groupOf(src.kind) };
+function base(src: Source): Pick<NewsItem, "source" | "sourceName" | "sources" | "kind" | "group" | "logo"> {
+  return { source: src.id, sourceName: src.name, sources: [src.id], kind: src.kind, group: groupOf(src.kind), logo: sourceLogo(src.domain) };
 }
 
 function parseRss(xml: string, src: Source, feed: Feed): NewsItem[] {
@@ -205,6 +205,7 @@ export async function GET() {
     kind: s.kind,
     group: groupOf(s.kind),
     count: counts[s.id] ?? 0,
+    logo: sourceLogo(s.domain),
   }));
 
   return NextResponse.json(
