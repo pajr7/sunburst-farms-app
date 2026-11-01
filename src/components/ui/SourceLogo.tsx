@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 
-/** Outlet logo with an initials fallback if the icon can't load. */
-export default function SourceLogo({ src, name, size = 28, rounded = 8 }: { src?: string; name: string; size?: number; rounded?: number }) {
+/**
+ * Outlet logo with an initials fallback if the icon can't load.
+ * With `bg`, the image is a wordmark drawn inside a colored tile (object-contain).
+ */
+export default function SourceLogo({ src, name, size = 28, rounded = 8, bg }: { src?: string; name: string; size?: number; rounded?: number; bg?: string }) {
   const [failed, setFailed] = useState(false);
   const initials = name
     .replace(/[^A-Za-z0-9 ]/g, "")
@@ -25,6 +28,16 @@ export default function SourceLogo({ src, name, size = 28, rounded = 8 }: { src?
       </span>
     );
   }
+
+  if (bg) {
+    const pad = Math.max(2, Math.round(size * 0.12));
+    return (
+      <span className="inline-flex items-center justify-center shrink-0 overflow-hidden" style={{ width: size, height: size, borderRadius: rounded, background: bg, padding: pad }} aria-hidden>
+        <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className="max-w-full max-h-full object-contain" />
+      </span>
+    );
+  }
+
   return (
     <img
       src={src}
