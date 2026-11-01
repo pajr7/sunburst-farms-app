@@ -166,39 +166,77 @@ function SideLink({ item, active, small, badge = 0 }: { item: NavItem; active: b
   );
 }
 
+const NOTCH_RADIUS = 36; // cutout around the floating button
+const FAB_SIZE = 58;
+
+/**
+ * Floating tab bar: white, rounded top corners, a notch at the center with a
+ * raised green "+" that opens Share. Icons only, with accessible names.
+ */
 function MobileTabBar({ unread }: { unread: { messages: number } }) {
   const pathname = usePathname();
+  const left = NAV.slice(0, 2);
+  const right = NAV.slice(2);
+
+  const tab = (item: NavItem) => {
+    const active = isActive(item, pathname);
+    const color = active ? "var(--primary)" : "var(--text-2)";
+    const label = item.href === "/messages" && unread.messages ? `${item.label}, ${unread.messages} unread` : item.label;
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        className="flex-1 flex items-center justify-center relative"
+        style={{ minHeight: 60 }}
+        aria-current={active ? "page" : undefined}
+        aria-label={label}
+        title={item.label}
+      >
+        <span className="relative">
+          <Icon name={item.icon} size={27} color={color} strokeWidth={active ? 2.2 : 1.7} />
+          {item.href === "/messages" && unread.messages > 0 && (
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full" style={{ background: "var(--danger)", boxShadow: "0 0 0 2px var(--surface)" }} aria-hidden />
+          )}
+        </span>
+      </Link>
+    );
+  };
 
   return (
-    <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-stretch pb-[env(safe-area-inset-bottom,0px)]"
-      style={{ background: "var(--surface)", borderTop: "1px solid var(--border)" }}
-      aria-label="Main"
-    >
-      {NAV.map((item) => {
-        const active = isActive(item, pathname);
-        const color = active ? "var(--primary)" : "var(--text-2)";
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="flex-1 flex flex-col items-center justify-center gap-1 relative"
-            style={{ minHeight: 58 }}
-            aria-current={active ? "page" : undefined}
-            aria-label={item.href === "/messages" && unread.messages ? `${item.label}, ${unread.messages} unread` : undefined}
-          >
-            <span className="relative">
-              <Icon name={item.icon} size={24} color={color} strokeWidth={active ? 2.2 : 1.75} />
-              {item.href === "/messages" && unread.messages > 0 && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full" style={{ background: "var(--danger)", boxShadow: "0 0 0 2px var(--surface)" }} aria-hidden />
-              )}
-            </span>
-            <span className="text-[12px] leading-none" style={{ color, fontWeight: active ? 700 : 500 }}>
-              {item.label}
-            </span>
-          </Link>
-        );
-      })}
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50" aria-label="Main" style={{ pointerEvents: "none" }}>
+      {/* Raised compose button, half above the bar */}
+      <Link
+        href="/post"
+        aria-label="Share with neighbors"
+        className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center rounded-full active:scale-95 transition-transform"
+        style={{
+          top: -FAB_SIZE / 2 + 4,
+          width: FAB_SIZE,
+          height: FAB_SIZE,
+          background: "var(--primary)",
+          color: "var(--text-on-primary)",
+          boxShadow: "0 6px 18px oklch(0.42 0.1 160 / 0.35)",
+          pointerEvents: "auto",
+        }}
+      >
+        <Icon name="plus" size={28} strokeWidth={2.4} />
+      </Link>
+
+      <div
+        className="flex items-stretch pb-[env(safe-area-inset-bottom,0px)]"
+        style={{
+          pointerEvents: "auto",
+          borderTopLeftRadius: 28,
+          borderTopRightRadius: 28,
+          boxShadow: "0 -6px 24px oklch(0 0 0 / 0.08)",
+          // White bar with a circular notch cut out of the top center
+          background: `radial-gradient(circle ${NOTCH_RADIUS}px at 50% 4px, transparent ${NOTCH_RADIUS - 1}px, var(--surface) ${NOTCH_RADIUS}px)`,
+        }}
+      >
+        {left.map(tab)}
+        <span aria-hidden style={{ width: FAB_SIZE + 24 }} />
+        {right.map(tab)}
+      </div>
     </nav>
   );
 }
