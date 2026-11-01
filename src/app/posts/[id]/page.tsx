@@ -85,7 +85,7 @@ export default function PostDetailPage() {
     setOwnerError(null);
     try {
       await deletePost(post.id, user.id);
-      router.replace("/");
+      router.replace("/posts");
     } catch {
       setOwnerError("Couldn't delete this post. If this keeps happening, ask a board member to remove it.");
       setBusy(false);
@@ -96,7 +96,7 @@ export default function PostDetailPage() {
   if (loading) {
     return (
       <AuthGuard>
-        <PageHeader title="Post" back="/" />
+        <PageHeader title="Post" back="/posts" />
         <Spinner label="Loading post" />
       </AuthGuard>
     );
@@ -105,7 +105,7 @@ export default function PostDetailPage() {
   if (!post) {
     return (
       <AuthGuard>
-        <PageHeader title="Post" back="/" />
+        <PageHeader title="Post" back="/posts" />
         <EmptyState icon="message-circle" title="Post not found" body="It may have been removed." action={<Button href="/">Back to Home</Button>} />
       </AuthGuard>
     );
@@ -117,7 +117,7 @@ export default function PostDetailPage() {
   return (
     <AuthGuard>
       <div className="flex flex-col min-h-screen pb-32 md:pb-8" style={{ background: "var(--bg)" }}>
-        <PageHeader title="Post" back="/" />
+        <PageHeader title="Post" back="/posts" />
 
         <main className="flex-1 px-4 md:px-6">
           <Panel>

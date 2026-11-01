@@ -10,6 +10,7 @@ import { MOCK_POSTS, MOCK_EVENTS, MOCK_LISTINGS } from "@/lib/data";
 import PostCard from "@/components/PostCard";
 import EventCard from "@/components/EventCard";
 import ListingCard from "@/components/ListingCard";
+import HomeOverview from "@/components/HomeOverview";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import FilterChips from "@/components/ui/FilterChips";
@@ -39,6 +40,19 @@ export default function DevPreviewPage() {
         <Notice tone="warning" icon="alert-triangle" title="Sample data">
           Everything on this page is made up for design review. It is not stored and not visible in production.
         </Notice>
+
+        <SectionTitle>Home overview</SectionTitle>
+        <HomeOverview
+          firstName="Pat"
+          posts={MOCK_POSTS.slice(0, 3).map((p) => ({ ...p, author: { ...p.author, id: "sample" } }))}
+          listings={MOCK_LISTINGS}
+          events={MOCK_EVENTS.map((e) => ({ id: e.id, title: e.title, date: e.date, time: e.time, location: e.location, going: e.attendees }))}
+          news={[
+            { title: "Scottsdale storms knock down power poles, leaving thousands without power", link: "#1", description: "", image: null, source: "fox10", sourceName: "FOX 10 Phoenix", sources: ["fox10"], kind: "tv", group: "news", publishedAt: new Date(Date.now() - 3600000).toISOString() },
+            { title: "Paradise Valley approves new bridle path lighting near 56th Street", link: "#2", description: "", image: null, source: "azcentral", sourceName: "Arizona Republic", sources: ["azcentral"], kind: "paper", group: "news", publishedAt: new Date(Date.now() - 7200000).toISOString() },
+          ]}
+          irrigation={{ id: "x", status: "estimated", window_start: "2026-11-06", window_end: "2026-11-08", note: null, created_at: new Date(Date.now() - 5400000).toISOString(), author: { name: "Dave Reiter" } }}
+        />
 
         <SectionTitle>Feed</SectionTitle>
         <Panel>

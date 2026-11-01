@@ -115,3 +115,16 @@ export interface SourceSummary {
   group: Group;
   count: number;
 }
+
+/* ---------- Shared "near us" matcher ---------- */
+export const NEARBY_TERMS = [
+  "north phoenix", "scottsdale", "paradise valley", "85254", "85032", "kierland", "desert ridge", "thunderbird",
+  "cactus rd", "cactus road", "shea blvd", "bell rd", "bell road", "greenway", "cave creek", "paradise ridge",
+  "deer valley", "sunburst", "tatum", "56th st", "scottsdale rd", "paradise valley mall", "pv mall", "horizon high",
+  "sunnyslope", "moon valley",
+];
+
+export function isNearbyNews(item: Pick<NewsItem, "title" | "description">): boolean {
+  const text = `${item.title} ${item.description}`.toLowerCase();
+  return NEARBY_TERMS.some((t) => text.includes(t));
+}
