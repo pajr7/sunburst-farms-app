@@ -50,7 +50,7 @@ export default function DevPreviewPage() {
           news={[
             { title: "Scottsdale storms knock down power poles, leaving thousands without power", link: "#1", description: "", image: null, source: "fox10", sourceName: "FOX 10 Phoenix", sources: ["fox10"], kind: "tv", group: "news", publishedAt: new Date(Date.now() - 3600000).toISOString() },
             { title: "Paradise Valley approves new bridle path lighting near 56th Street", link: "#2", description: "", image: null, source: "azcentral", sourceName: "Arizona Republic", sources: ["azcentral"], kind: "paper", group: "news", publishedAt: new Date(Date.now() - 7200000).toISOString(), logo: "https://www.google.com/s2/favicons?domain=azcentral.com&sz=128" },
-            { title: "Flood watch continues for the Valley through Monday morning", link: "#3", description: "", image: null, source: "12news", sourceName: "12News", sources: ["12news"], kind: "tv", group: "news", publishedAt: new Date(Date.now() - 9000000).toISOString(), logo: "https://www.12news.com/assets/shared-images/logos/KPNX.png", logoBg: "oklch(0.38 0.16 262)" },
+            { title: "Flood watch continues for the Valley through Monday morning", link: "#3", description: "", image: null, source: "12news", sourceName: "12News", sources: ["12news"], kind: "tv", group: "news", publishedAt: new Date(Date.now() - 9000000).toISOString(), logo: "https://www.12news.com/assets/shared-images/logos/KPNX.png", logoBg: "oklch(0.38 0.16 262)", logoCrop: 0.375 },
           ]}
           irrigation={{ id: "x", status: "estimated", window_start: "2026-11-06", window_end: "2026-11-08", note: null, created_at: new Date(Date.now() - 5400000).toISOString(), author: { name: "Dave Reiter" } }}
         />

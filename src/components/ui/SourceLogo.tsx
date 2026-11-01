@@ -4,9 +4,25 @@ import { useState } from "react";
 
 /**
  * Outlet logo with an initials fallback if the icon can't load.
- * With `bg`, the image is a wordmark drawn inside a colored tile (object-contain).
+ * With `bg`, the image is a wordmark drawn inside a colored tile.
+ * With `crop`, only the left fraction of a wide wordmark is shown, so the
+ * recognizable part (a station number, say) fills the tile.
  */
-export default function SourceLogo({ src, name, size = 28, rounded = 8, bg }: { src?: string; name: string; size?: number; rounded?: number; bg?: string }) {
+export default function SourceLogo({
+  src,
+  name,
+  size = 28,
+  rounded = 8,
+  bg,
+  crop,
+}: {
+  src?: string;
+  name: string;
+  size?: number;
+  rounded?: number;
+  bg?: string;
+  crop?: number;
+}) {
   const [failed, setFailed] = useState(false);
   const initials = name
     .replace(/[^A-Za-z0-9 ]/g, "")
@@ -31,9 +47,16 @@ export default function SourceLogo({ src, name, size = 28, rounded = 8, bg }: { 
 
   if (bg) {
     const pad = Math.max(2, Math.round(size * 0.12));
+    const inner = size - pad * 2;
     return (
       <span className="inline-flex items-center justify-center shrink-0 overflow-hidden" style={{ width: size, height: size, borderRadius: rounded, background: bg, padding: pad }} aria-hidden>
-        <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className="max-w-full max-h-full object-contain" />
+        {crop ? (
+          <span className="flex items-center overflow-hidden" style={{ width: inner, height: inner }}>
+            <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} style={{ width: inner / crop, maxWidth: "none", height: "auto" }} />
+          </span>
+        ) : (
+          <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className="max-w-full max-h-full object-contain" />
+        )}
       </span>
     );
   }

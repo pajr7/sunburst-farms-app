@@ -75,8 +75,8 @@ function toIso(raw: string): string {
   return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
 }
 
-function base(src: Source): Pick<NewsItem, "source" | "sourceName" | "sources" | "kind" | "group" | "logo" | "logoBg"> {
-  return { source: src.id, sourceName: src.name, sources: [src.id], kind: src.kind, group: groupOf(src.kind), logo: src.logo ?? sourceLogo(src.domain), logoBg: src.logoBg };
+function base(src: Source): Pick<NewsItem, "source" | "sourceName" | "sources" | "kind" | "group" | "logo" | "logoBg" | "logoCrop"> {
+  return { source: src.id, sourceName: src.name, sources: [src.id], kind: src.kind, group: groupOf(src.kind), logo: src.logo ?? sourceLogo(src.domain), logoBg: src.logoBg, logoCrop: src.logoCrop };
 }
 
 function parseRss(xml: string, src: Source, feed: Feed): NewsItem[] {
@@ -207,6 +207,7 @@ export async function GET() {
     count: counts[s.id] ?? 0,
     logo: s.logo ?? sourceLogo(s.domain),
     logoBg: s.logoBg,
+    logoCrop: s.logoCrop,
   }));
 
   return NextResponse.json(

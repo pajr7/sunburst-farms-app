@@ -230,7 +230,7 @@ export default function HomeOverview({ firstName, posts, listings, events, news,
                   <a href={n.link} target="_blank" rel="noopener noreferrer" className="flex gap-3 px-4 py-3.5">
                     <span className="flex-1 min-w-0">
                       <span className="flex items-center gap-1.5 text-[13px] font-bold" style={{ color: "var(--text-2)" }}>
-                        <SourceLogo src={n.logo} bg={n.logoBg} name={n.sourceName} size={20} rounded={5} />
+                        <SourceLogo src={n.logo} bg={n.logoBg} crop={n.logoCrop} name={n.sourceName} size={20} rounded={5} />
                         {n.sourceName}
                       </span>
                       <span className="block text-[15px] font-semibold leading-snug line-clamp-2 mt-0.5" style={{ color: "var(--text)" }}>{n.title}</span>

@@ -27,6 +27,8 @@ export interface Source {
   /** Explicit logo file when the site's icon is too small; shown on logoBg */
   logo?: string;
   logoBg?: string;
+  /** Show only the left fraction of a wide wordmark (0 to 1) */
+  logoCrop?: number;
   feeds: Feed[];
 }
 
@@ -50,7 +52,7 @@ export const SOURCES: Source[] = [
   // TV
   { id: "abc15", name: "ABC15 Arizona", short: "ABC15", kind: "tv", domain: "abc15.com", feeds: [RSS("https://www.abc15.com/news.rss")] },
   { id: "azfamily", name: "Arizona's Family (3TV/CBS 5)", short: "AZFamily", kind: "tv", domain: "azfamily.com", feeds: [RSS("https://www.azfamily.com/arc/outboundfeeds/rss/")] },
-  { id: "12news", name: "12News", short: "12News", kind: "tv", domain: "12news.com", logo: "https://www.12news.com/assets/shared-images/logos/KPNX.png", logoBg: "oklch(0.38 0.16 262)", feeds: [RSS("https://www.12news.com/feeds/syndication/rss/news/local")] },
+  { id: "12news", name: "12News", short: "12News", kind: "tv", domain: "12news.com", logo: "https://www.12news.com/assets/shared-images/logos/KPNX.png", logoBg: "oklch(0.38 0.16 262)", logoCrop: 0.375, feeds: [RSS("https://www.12news.com/feeds/syndication/rss/news/local")] },
   { id: "fox10", name: "FOX 10 Phoenix", short: "FOX 10", kind: "tv", domain: "fox10phoenix.com", feeds: [RSS("https://www.fox10phoenix.com/rss/category/news")] },
 
   // Papers and online
@@ -75,7 +77,7 @@ export const SOURCES: Source[] = [
   { id: "azsports", name: "Arizona Sports 98.7 FM", short: "AZ Sports 98.7", kind: "sports-net", domain: "arizonasports.com", feeds: [GN("site:arizonasports.com when:2d")] },
   { id: "phnx", name: "PHNX Sports", short: "PHNX", kind: "sports-net", domain: "gophnx.com", feeds: [RSS("https://gophnx.com/feed/")] },
   { id: "abc15sports", name: "ABC15 Sports", short: "ABC15 Sports", kind: "sports-net", domain: "abc15.com", feeds: [RSS("https://www.abc15.com/sports.rss")] },
-  { id: "12newssports", name: "12News Sports", short: "12News Sports", kind: "sports-net", domain: "12news.com", logo: "https://www.12news.com/assets/shared-images/logos/KPNX.png", logoBg: "oklch(0.38 0.16 262)", feeds: [RSS("https://www.12news.com/feeds/syndication/rss/sports")] },
+  { id: "12newssports", name: "12News Sports", short: "12News Sports", kind: "sports-net", domain: "12news.com", logo: "https://www.12news.com/assets/shared-images/logos/KPNX.png", logoBg: "oklch(0.38 0.16 262)", logoCrop: 0.375, feeds: [RSS("https://www.12news.com/feeds/syndication/rss/sports")] },
   { id: "fox10sports", name: "FOX 10 Sports", short: "FOX 10 Sports", kind: "sports-net", domain: "fox10phoenix.com", feeds: [RSS("https://www.fox10phoenix.com/rss/category/sports")] },
   { id: "azfamilysports", name: "AZFamily Sports", short: "AZFamily Sports", kind: "sports-net", domain: "azfamily.com", feeds: [RSS("https://www.azfamily.com/arc/outboundfeeds/rss/category/sports/")] },
   { id: "cronkitesports", name: "Cronkite Sports", short: "Cronkite Sports", kind: "sports-net", domain: "cronkitenews.azpbs.org", feeds: [RSS("https://cronkitenews.azpbs.org/category/sports/feed/")] },
@@ -109,6 +111,7 @@ export interface NewsItem {
   publishedAt: string;
   logo?: string;
   logoBg?: string;
+  logoCrop?: number;
   // alerts only
   severity?: string;
   expiresAt?: string;
@@ -123,6 +126,7 @@ export interface SourceSummary {
   count: number;
   logo: string;
   logoBg?: string;
+  logoCrop?: number;
 }
 
 /* ---------- Shared "near us" matcher ---------- */

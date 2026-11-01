@@ -67,7 +67,7 @@ function ViewTab({ active, onClick, children, tone = "default" }: { active: bool
 }
 
 /** Logo-first source picker: the outlet's icon with a small label underneath. */
-function SourceChip({ active, onClick, label, logo, logoBg, name }: { active: boolean; onClick: () => void; label: string; logo?: string; logoBg?: string; name: string }) {
+function SourceChip({ active, onClick, label, logo, logoBg, logoCrop, name }: { active: boolean; onClick: () => void; label: string; logo?: string; logoBg?: string; logoCrop?: number; name: string }) {
   return (
     <button
       type="button"
@@ -82,7 +82,7 @@ function SourceChip({ active, onClick, label, logo, logoBg, name }: { active: bo
         className="rounded-xl p-[3px]"
         style={{ boxShadow: active ? "0 0 0 2px var(--primary)" : "0 0 0 1px var(--border)", background: "var(--surface)" }}
       >
-        <SourceLogo src={logo} bg={logoBg} name={name} size={40} rounded={9} />
+        <SourceLogo src={logo} bg={logoBg} crop={logoCrop} name={name} size={40} rounded={9} />
       </span>
       <span className="text-[11px] font-semibold leading-tight text-center truncate w-full px-0.5" style={{ color: active ? "var(--primary-soft-text)" : "var(--text-2)" }}>
         {label}
@@ -183,7 +183,7 @@ export default function NewsPage() {
                 return (
                   <span key={s.id} className="flex items-start shrink-0">
                     {newKind && <span className="w-px h-10 mx-1 mt-1.5" style={{ background: "var(--border-strong)" }} aria-hidden />}
-                    <SourceChip active={sourceId === s.id} onClick={() => setSourceId((cur) => (cur === s.id ? null : s.id))} label={s.short} logo={s.logo} logoBg={s.logoBg} name={s.name} />
+                    <SourceChip active={sourceId === s.id} onClick={() => setSourceId((cur) => (cur === s.id ? null : s.id))} label={s.short} logo={s.logo} logoBg={s.logoBg} logoCrop={s.logoCrop} name={s.name} />
                   </span>
                 );
               })}
@@ -227,7 +227,7 @@ export default function NewsPage() {
                           <a href={item.link} target="_blank" rel="noopener noreferrer" className="flex gap-3.5 px-4 py-3.5 active:bg-[var(--surface-2)]">
                             <span className="flex-1 min-w-0">
                               <span className="flex items-center gap-2 mb-1.5 text-[13px]">
-                                {!isAlert && <SourceLogo src={bylineSource?.logo ?? item.logo} bg={bylineSource?.logoBg ?? item.logoBg} name={byline} size={22} rounded={6} />}
+                                {!isAlert && <SourceLogo src={bylineSource?.logo ?? item.logo} bg={bylineSource?.logoBg ?? item.logoBg} crop={bylineSource?.logoCrop ?? item.logoCrop} name={byline} size={22} rounded={6} />}
                                 <span className="font-bold" style={{ color: isAlert ? (severityTone(item.severity) === "danger" ? "var(--danger)" : "var(--warning)") : "var(--text-2)" }}>
                                   {isAlert ? "NWS alert" : byline}
                                 </span>
