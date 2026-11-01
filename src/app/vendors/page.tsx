@@ -52,7 +52,7 @@ export default function VendorsPage() {
     <AuthGuard>
       <div className="flex flex-col min-h-screen pb-24 md:pb-4" style={{ background: "var(--bg)" }}>
         <header
-          className="sticky top-0 z-40 px-4 pt-[env(safe-area-inset-top,12px)] pb-3"
+          className="sticky top-0 z-40 px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-3"
           style={{ background: "var(--bg)" }}
         >
           <div className="flex items-center justify-between mb-3">

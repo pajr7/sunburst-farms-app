@@ -141,7 +141,7 @@ export default function EventDetailPage() {
             />
             <button
               onClick={() => router.back()}
-              className="absolute top-[env(safe-area-inset-top,12px)] left-4 w-9 h-9 rounded-full flex items-center justify-center"
+              className="absolute top-[calc(env(safe-area-inset-top,0px)_+_20px)] left-4 w-9 h-9 rounded-full flex items-center justify-center"
               style={{ background: "var(--card)", border: "1px solid var(--border)" }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -150,7 +150,7 @@ export default function EventDetailPage() {
             </button>
           </div>
         ) : (
-          <header className="px-4 pt-[env(safe-area-inset-top,12px)] pb-2">
+          <header className="px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-2">
             <button
               onClick={() => router.back()}
               className="flex items-center gap-1.5 text-sm font-medium mb-3"

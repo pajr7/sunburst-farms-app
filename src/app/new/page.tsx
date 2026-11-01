@@ -55,7 +55,7 @@ export default function NewChoicePage() {
   return (
     <AuthGuard>
       <div className="flex flex-col min-h-screen pb-24 md:pb-4" style={{ background: "var(--bg)" }}>
-        <header className="px-5 pt-[env(safe-area-inset-top,20px)] pb-6">
+        <header className="px-5 pt-[calc(env(safe-area-inset-top,0px)_+_32px)] pb-6">
           <p className="text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: "var(--text-muted)" }}>
             Create
           </p>

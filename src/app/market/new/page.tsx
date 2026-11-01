@@ -111,7 +111,7 @@ export default function NewListingPage() {
   return (
     <AuthGuard>
       <div className="flex flex-col min-h-screen pb-24 md:pb-4" style={{ background: "var(--bg)" }}>
-        <header className="px-4 pt-[env(safe-area-inset-top,12px)] pb-3">
+        <header className="px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-3">
           <h1 className="font-extrabold tracking-tight text-2xl" style={{ color: "var(--navy)" }}>
             List an item
           </h1>

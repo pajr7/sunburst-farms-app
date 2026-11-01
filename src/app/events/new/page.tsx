@@ -87,7 +87,7 @@ export default function CreateEventPage() {
   return (
     <AuthGuard>
       <div className="flex flex-col min-h-screen pb-24 md:pb-4" style={{ background: "var(--bg)" }}>
-        <header className="px-4 pt-[env(safe-area-inset-top,12px)] pb-3">
+        <header className="px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-3">
           <button
             onClick={() => router.back()}
             className="flex items-center gap-1.5 text-sm font-medium mb-3"

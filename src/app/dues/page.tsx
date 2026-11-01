@@ -7,7 +7,7 @@ export default function DuesPage() {
   return (
     <AuthGuard>
       <div className="flex flex-col min-h-screen pb-28 md:pb-4" style={{ background: "var(--bg)" }}>
-        <header className="px-5 pt-[env(safe-area-inset-top,12px)] pb-3">
+        <header className="px-5 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-3">
           <div className="flex items-center gap-3 pt-3 animate-fade-up">
             <Link
               href="/"

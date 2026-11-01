@@ -79,7 +79,7 @@ export default function ListingDetailPage() {
           <div className="relative md:flex-1 md:max-w-lg md:rounded-2xl md:overflow-hidden md:self-start md:sticky md:top-6">
             <button
               onClick={() => router.back()}
-              className="absolute top-[env(safe-area-inset-top,12px)] left-4 z-10 w-9 h-9 rounded-full flex items-center justify-center md:top-4"
+              className="absolute top-[calc(env(safe-area-inset-top,0px)_+_20px)] left-4 z-10 w-9 h-9 rounded-full flex items-center justify-center md:top-4"
               style={{ background: "rgba(255,255,255,0.9)", backdropFilter: "blur(8px)" }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

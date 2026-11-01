@@ -29,7 +29,7 @@ export default function ProfilePage() {
     <AuthGuard>
       <div className="flex flex-col min-h-screen pb-24 md:pb-4" style={{ background: "var(--bg)" }}>
         <header
-          className="px-4 pt-[env(safe-area-inset-top,12px)] pb-3"
+          className="px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-3"
           style={{ background: "var(--bg)" }}
         >
           <h1

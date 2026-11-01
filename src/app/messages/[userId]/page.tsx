@@ -69,7 +69,7 @@ export default function ConversationPage() {
     <AuthGuard>
       <div className="flex flex-col h-screen" style={{ background: "var(--bg)" }}>
         <header
-          className="sticky top-0 z-40 px-4 pt-[env(safe-area-inset-top,12px)] pb-3 flex items-center gap-3"
+          className="sticky top-0 z-40 px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-3 flex items-center gap-3"
           style={{ background: "var(--bg)", boxShadow: "0 1px 8px oklch(0.25 0.01 70 / 0.06)" }}
         >
           <button

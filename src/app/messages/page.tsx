@@ -55,7 +55,7 @@ export default function MessagesPage() {
   return (
     <AuthGuard>
       <div className="flex flex-col min-h-screen pb-24 md:pb-4" style={{ background: "var(--bg)" }}>
-        <header className="sticky top-0 z-40 px-4 pt-[env(safe-area-inset-top,12px)] pb-4 flex items-center justify-between" style={{ background: "var(--bg)" }}>
+        <header className="sticky top-0 z-40 px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-4 flex items-center justify-between" style={{ background: "var(--bg)" }}>
           <div>
             <h1 className="font-extrabold tracking-tight text-2xl" style={{ color: "var(--navy)" }}>
               Messages
@@ -168,7 +168,7 @@ export default function MessagesPage() {
 
         {showDirectory && (
           <div className="fixed inset-0 z-[60] flex flex-col" style={{ background: "var(--bg)" }}>
-            <header className="px-4 pt-[env(safe-area-inset-top,12px)] pb-3 flex items-center gap-3">
+            <header className="px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-3 flex items-center gap-3">
               <button
                 onClick={() => { setShowDirectory(false); setSearchQuery(""); }}
                 className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"

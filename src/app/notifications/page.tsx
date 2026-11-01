@@ -47,7 +47,7 @@ export default function NotificationsPage() {
   return (
     <AuthGuard>
       <div className="flex flex-col min-h-screen pb-24 md:pb-4" style={{ background: "var(--bg)" }}>
-        <header className="sticky top-0 z-40 px-4 pt-[env(safe-area-inset-top,12px)] pb-4" style={{ background: "var(--bg)" }}>
+        <header className="sticky top-0 z-40 px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-4" style={{ background: "var(--bg)" }}>
           <h1 className="font-extrabold tracking-tight text-2xl" style={{ color: "var(--navy)" }}>
             Notifications
           </h1>
