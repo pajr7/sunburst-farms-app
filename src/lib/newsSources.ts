@@ -34,7 +34,7 @@ const RSS = (url: string): Feed => ({ format: "rss", url });
 // Team searches are limited to real outlets. Without this, game days fill
 // up with "free live stream" spam from throwaway sites.
 const SPORTS_SITES =
-  "(site:arizonasports.com OR site:azcentral.com OR site:gophnx.com OR site:espn.com OR site:nfl.com OR site:nba.com OR site:mlb.com OR site:wnba.com OR site:nhl.com OR site:uslchampionship.com OR site:si.com OR site:cbssports.com OR site:sports.yahoo.com OR site:nytimes.com OR site:azfamily.com OR site:12news.com OR site:abc15.com OR site:fox10phoenix.com OR site:ktar.com OR site:cronkitenews.azpbs.org OR site:foxsports.com OR site:nbcsports.com OR site:usatoday.com OR site:bleacherreport.com OR site:phoenixnewtimes.com)";
+  "(site:arizonasports.com OR site:azcentral.com OR site:gophnx.com OR site:espn.com OR site:nfl.com OR site:nba.com OR site:mlb.com OR site:wnba.com OR site:uslchampionship.com OR site:si.com OR site:cbssports.com OR site:sports.yahoo.com OR site:nytimes.com OR site:azfamily.com OR site:12news.com OR site:abc15.com OR site:fox10phoenix.com OR site:ktar.com OR site:cronkitenews.azpbs.org OR site:foxsports.com OR site:nbcsports.com OR site:usatoday.com OR site:bleacherreport.com OR site:phoenixnewtimes.com)";
 const TEAM = (q: string, days = 2): Feed => GN(`${q} ${SPORTS_SITES} when:${days}d`);
 
 export const SOURCES: Source[] = [
@@ -83,7 +83,6 @@ export const SOURCES: Source[] = [
   { id: "rising", name: "Phoenix Rising FC", short: "Rising FC", kind: "sports-team", feeds: [TEAM('"Phoenix Rising"', 5)] },
   { id: "asu", name: "ASU Sun Devils", short: "Sun Devils", kind: "sports-team", feeds: [TEAM('"Sun Devils"')] },
   { id: "wildcats", name: "Arizona Wildcats", short: "Wildcats", kind: "sports-team", feeds: [RSS("https://arizonawildcats.com/rss"), TEAM('"Arizona Wildcats"')] },
-  { id: "coyotes", name: "Arizona Coyotes / NHL", short: "Coyotes", kind: "sports-team", feeds: [TEAM('"Arizona Coyotes"', 7)] },
 ];
 
 export function groupOf(kind: SourceKind): Group {
