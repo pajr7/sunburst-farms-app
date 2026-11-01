@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import { SOURCES, type Source, type NewsItem } from "@/lib/newsSources";
+import { SOURCES, groupOf, type Source, type Feed, type NewsItem } from "@/lib/newsSources";
+
+// ~40 feeds fetched in parallel; give the function room on a slow morning.
+export const maxDuration = 30;
 
 const PER_FEED = 20;
-const MAX_ITEMS = 200;
+const MAX_PER_GROUP = 300;
+const DESC_CHARS = 200;
 
 function decode(s: string): string {
   return s
@@ -21,8 +25,25 @@ function decode(s: string): string {
     .replace(/&#8212;/g, "-")
     .replace(/&nbsp;/g, " ")
     .replace(/&apos;/g, "'")
+    .replace(/[​-‏⁠﻿]/g, "") // zero-width junk spammers use
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// Pirate-stream spam that floods search feeds on game day
+const SPAM = [
+  /live\s*stream/i,
+  /free\s*stream/i,
+  /streams?\s+(on|free)/i,
+  /watch\s*live/i,
+  /\blive\s+free\b/i,
+  /on\s+tv\s+channel/i,
+  /^[\[\(【!+*]/, // titles that open with brackets or punctuation
+  /[！-～]/, // fullwidth letters: "Ｓｔｒｅａｍｓ"
+  /[\u{1D400}-\u{1D7FF}]/u, // math-bold letters: "𝐋𝐈𝐕𝐄"
+];
+function isSpam(title: string): boolean {
+  return SPAM.some((re) => re.test(title));
 }
 
 function extractTag(xml: string, tag: string): string {
@@ -54,29 +75,31 @@ function toIso(raw: string): string {
   return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
 }
 
-function parseRss(xml: string, src: Source): NewsItem[] {
+function base(src: Source): Pick<NewsItem, "source" | "sourceName" | "sources" | "kind" | "group"> {
+  return { source: src.id, sourceName: src.name, sources: [src.id], kind: src.kind, group: groupOf(src.kind) };
+}
+
+function parseRss(xml: string, src: Source, feed: Feed): NewsItem[] {
   const out: NewsItem[] = [];
   const items = xml.match(/<item[\s>][\s\S]*?<\/item>/gi) ?? [];
   for (const itemXml of items.slice(0, PER_FEED)) {
     let title = extractTag(itemXml, "title");
     const link = extractTag(itemXml, "link");
-    if (!title || !link) continue;
+    if (!title || !link || isSpam(title)) continue;
 
-    let description = extractTag(itemXml, "description").slice(0, 300);
-    if (src.format === "gnews") {
+    let description = extractTag(itemXml, "description").slice(0, DESC_CHARS);
+    if (feed.format === "gnews") {
       // Google News titles end in " - Outlet Name"; description is just links
       title = title.replace(/\s+-\s+[^-]+$/, "").trim();
       description = "";
     }
 
     out.push({
+      ...base(src),
       title,
       link,
       description,
-      image: src.format === "gnews" ? null : extractImage(itemXml),
-      source: src.id,
-      sourceName: src.name,
-      kind: src.kind,
+      image: feed.format === "gnews" ? null : extractImage(itemXml),
       publishedAt: toIso(extractTag(itemXml, "pubDate")),
     });
   }
@@ -103,13 +126,11 @@ function parseAtom(xml: string, src: Source): NewsItem[] {
       .trim();
 
     out.push({
+      ...base(src),
       title: event || title,
       link: "https://www.weather.gov/psr/",
-      description: summary.slice(0, 300),
+      description: summary.slice(0, DESC_CHARS),
       image: null,
-      source: src.id,
-      sourceName: src.name,
-      kind: src.kind,
       publishedAt: toIso(extractTag(entryXml, "updated") || extractTag(entryXml, "published")),
       severity: extractTag(entryXml, "cap:severity") || undefined,
       expiresAt: expiresRaw ? toIso(expiresRaw) : undefined,
@@ -118,9 +139,9 @@ function parseAtom(xml: string, src: Source): NewsItem[] {
   return out;
 }
 
-async function fetchSource(src: Source): Promise<NewsItem[]> {
+async function fetchFeed(src: Source, feed: Feed): Promise<NewsItem[]> {
   try {
-    const res = await fetch(src.url, {
+    const res = await fetch(feed.url, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 SBFE-Community-App",
@@ -131,42 +152,63 @@ async function fetchSource(src: Source): Promise<NewsItem[]> {
     });
     if (!res.ok) return [];
     const xml = await res.text();
-    return src.format === "atom" ? parseAtom(xml, src) : parseRss(xml, src);
+    return feed.format === "atom" ? parseAtom(xml, src) : parseRss(xml, src, feed);
   } catch {
     return [];
   }
 }
 
-export async function GET() {
-  const results = await Promise.all(SOURCES.map(fetchSource));
+function dedupeKey(title: string): string {
+  return title.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 60);
+}
 
-  // Dedupe near-identical headlines; earlier sources in SOURCES win
-  const seen = new Set<string>();
+export async function GET() {
+  // One fetch per feed, in parallel, then regroup by source in SOURCES order
+  const jobs = SOURCES.flatMap((src) => src.feeds.map((feed) => fetchFeed(src, feed)));
+  const results = await Promise.all(jobs);
+
+  const seen = new Map<string, NewsItem>();
   const items: NewsItem[] = [];
   for (const list of results) {
     for (const item of list) {
-      const key = item.title.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 60);
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
+      const key = dedupeKey(item.title);
+      if (!key) continue;
+      const existing = seen.get(key);
+      if (existing) {
+        // Same story from another source: tag it so that source's button still finds it
+        if (!existing.sources.includes(item.source)) existing.sources.push(item.source);
+        continue;
+      }
+      seen.set(key, item);
       items.push(item);
     }
   }
 
   items.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
+  // Cap each group separately so a busy sports day can't push the news out
+  const perGroup: Record<string, number> = {};
+  const trimmed = items.filter((item) => {
+    perGroup[item.group] = (perGroup[item.group] ?? 0) + 1;
+    return perGroup[item.group] <= MAX_PER_GROUP;
+  });
+
   const counts: Record<string, number> = {};
-  for (const item of items) counts[item.source] = (counts[item.source] ?? 0) + 1;
+  for (const item of trimmed) {
+    for (const id of item.sources) counts[id] = (counts[id] ?? 0) + 1;
+  }
 
   const sources = SOURCES.map((s) => ({
     id: s.id,
     name: s.name,
     short: s.short,
     kind: s.kind,
+    group: groupOf(s.kind),
     count: counts[s.id] ?? 0,
   }));
 
   return NextResponse.json(
-    { items: items.slice(0, MAX_ITEMS), sources, updatedAt: new Date().toISOString() },
+    { items: trimmed, sources, updatedAt: new Date().toISOString() },
     { headers: { "Cache-Control": "public, s-maxage=900, stale-while-revalidate=1800" } },
   );
 }

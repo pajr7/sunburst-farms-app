@@ -3,9 +3,9 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import AuthGuard from "@/components/AuthGuard";
-import type { NewsItem, SourceSummary, SourceKind } from "@/lib/newsSources";
+import type { NewsItem, SourceSummary, SourceKind, Group } from "@/lib/newsSources";
 
-type View = "all" | "nearby" | "alerts";
+type View = "all" | "nearby" | "sports" | "alerts";
 
 const NEARBY_TERMS = [
   "north phoenix",
@@ -42,8 +42,18 @@ const KIND_LABEL: Record<SourceKind, string> = {
   paper: "Papers & Online",
   radio: "Radio",
   gov: "Government",
+  "sports-net": "Sports Networks",
+  "sports-team": "Teams",
 };
-const KIND_ORDER: SourceKind[] = ["tv", "paper", "radio", "gov", "alert"];
+const NEWS_KINDS: SourceKind[] = ["tv", "paper", "radio", "gov"];
+const SPORTS_KINDS: SourceKind[] = ["sports-net", "sports-team"];
+
+const VIEW_GROUP: Record<View, Group | null> = {
+  all: "news",
+  nearby: null,
+  sports: "sports",
+  alerts: "alert",
+};
 
 function isNearby(item: NewsItem): boolean {
   const text = `${item.title} ${item.description}`.toLowerCase();
@@ -88,11 +98,39 @@ function Pill({
   return (
     <button
       onClick={onClick}
-      className="shrink-0 px-3.5 py-1.5 rounded-full text-[12px] whitespace-nowrap transition-all active:scale-95"
+      className="shrink-0 px-3 py-1.5 rounded-full text-[12px] whitespace-nowrap transition-all active:scale-95"
       style={{
         background: active ? activeBg : "var(--card)",
         color: active ? "var(--white)" : "var(--text-secondary)",
         border: active ? `1px solid ${activeBg}` : "1px solid var(--border)",
+        fontWeight: active ? 700 : 600,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Chip({
+  active,
+  onClick,
+  children,
+  title,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  title?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className="shrink-0 px-3 py-1 rounded-lg text-[11.5px] whitespace-nowrap transition-all active:scale-95"
+      style={{
+        background: active ? "var(--accent-light)" : "transparent",
+        color: active ? "var(--accent)" : "var(--text-secondary)",
+        border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
         fontWeight: active ? 700 : 600,
       }}
     >
@@ -122,30 +160,51 @@ export default function NewsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const alerts = useMemo(() => items.filter((i) => i.kind === "alert"), [items]);
+  const alerts = useMemo(() => items.filter((i) => i.group === "alert"), [items]);
 
   const visible = useMemo(() => {
     let list = items;
-    if (view === "nearby") list = list.filter(isNearby);
-    else if (view === "alerts") list = list.filter((i) => i.kind === "alert");
-    else list = list.filter((i) => i.kind !== "alert"); // alerts live in the banner
-    if (sourceId) list = list.filter((i) => i.source === sourceId);
+    if (view === "nearby") list = list.filter((i) => i.group !== "alert" && isNearby(i));
+    else list = list.filter((i) => i.group === VIEW_GROUP[view]);
+    if (sourceId) list = list.filter((i) => i.sources.includes(sourceId));
     return list;
   }, [items, view, sourceId]);
 
-  const liveSources = useMemo(
-    () =>
-      KIND_ORDER.flatMap((kind) =>
-        sources.filter((s) => s.kind === kind && s.count > 0 && s.kind !== "alert"),
-      ),
-    [sources],
-  );
-  const liveCount = liveSources.length + (alerts.length > 0 ? 1 : 0);
+  const byKind = (kinds: SourceKind[]) =>
+    kinds.flatMap((kind) => sources.filter((s) => s.kind === kind && s.count > 0));
+  const newsSources = useMemo(() => byKind(NEWS_KINDS), [sources]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sportsSources = useMemo(() => byKind(SPORTS_KINDS), [sources]); // eslint-disable-line react-hooks/exhaustive-deps
+  const chipSources = view === "sports" ? sportsSources : view === "alerts" ? [] : newsSources;
+  const liveCount = sources.filter((s) => s.count > 0).length;
 
-  const selectSource = (id: string) => {
-    setSourceId((cur) => (cur === id ? null : id));
-    if (view === "alerts") setView("all");
+  const switchView = (next: View) => {
+    setView(next);
+    // Drop a source pick that doesn't belong to the new view
+    const keep =
+      next === "sports"
+        ? sportsSources.some((s) => s.id === sourceId)
+        : next === "alerts"
+          ? false
+          : newsSources.some((s) => s.id === sourceId);
+    if (!keep) setSourceId(null);
   };
+
+  const toggleSource = (id: string) => setSourceId((cur) => (cur === id ? null : id));
+
+  const emptyTitle = error
+    ? "News unavailable"
+    : view === "alerts"
+      ? "No active alerts"
+      : view === "nearby"
+        ? "Nothing near us right now"
+        : "No stories yet";
+  const emptyBody = error
+    ? "Couldn't reach the news feeds. Try again in a bit."
+    : view === "alerts"
+      ? "All clear from the National Weather Service for Maricopa County."
+      : view === "nearby"
+        ? "No stories mentioning our area yet today. Check the News tab."
+        : "This source hasn't published anything recently.";
 
   return (
     <AuthGuard>
@@ -166,7 +225,7 @@ export default function NewsPage() {
             </Link>
             <div className="flex-1">
               <h1 className="text-[20px] font-extrabold tracking-tight leading-none" style={{ color: "var(--navy)" }}>
-                Arizona News
+                Arizona News &amp; Sports
               </h1>
               <p className="text-[11px] font-medium mt-1" style={{ color: "var(--text-muted)" }}>
                 {loading
@@ -176,50 +235,38 @@ export default function NewsPage() {
             </div>
           </div>
 
-          <div className="flex gap-2 mb-2">
-            <Pill active={view === "all"} onClick={() => setView("all")}>
-              All Arizona
+          <div className="flex gap-2 mb-2 overflow-x-auto hide-scrollbar -mx-4 px-4">
+            <Pill active={view === "all"} onClick={() => switchView("all")}>
+              {"\u{1F4F0}"} News
             </Pill>
-            <Pill active={view === "nearby"} onClick={() => setView("nearby")}>
+            <Pill active={view === "nearby"} onClick={() => switchView("nearby")}>
               {"\u{1F4CD}"} Near Us
             </Pill>
+            <Pill active={view === "sports"} onClick={() => switchView("sports")}>
+              {"\u{1F3C8}"} Sports
+            </Pill>
             {alerts.length > 0 && (
-              <Pill active={view === "alerts"} onClick={() => { setView("alerts"); setSourceId(null); }} tone="danger">
+              <Pill active={view === "alerts"} onClick={() => switchView("alerts")} tone="danger">
                 {"\u{1F6A8}"} Alerts ({alerts.length})
               </Pill>
             )}
           </div>
 
-          {!loading && liveSources.length > 0 && (
-            <div className="flex gap-1.5 overflow-x-auto hide-scrollbar -mx-4 px-4 pb-2">
-              <button
-                onClick={() => setSourceId(null)}
-                className="shrink-0 px-3 py-1 rounded-lg text-[11.5px] font-bold whitespace-nowrap transition-all active:scale-95"
-                style={{
-                  background: sourceId === null ? "var(--accent-light)" : "transparent",
-                  color: sourceId === null ? "var(--accent)" : "var(--text-muted)",
-                  border: `1px solid ${sourceId === null ? "var(--accent)" : "var(--border)"}`,
-                }}
-              >
-                Every source
-              </button>
-              {liveSources.map((s) => {
-                const active = sourceId === s.id;
+          {!loading && chipSources.length > 0 && (
+            <div className="flex gap-1.5 overflow-x-auto hide-scrollbar -mx-4 px-4 pb-2 items-center">
+              <Chip active={sourceId === null} onClick={() => setSourceId(null)}>
+                {view === "sports" ? "All sports" : "Every source"}
+              </Chip>
+              {chipSources.map((s, i) => {
+                const prev = chipSources[i - 1];
+                const newKind = view === "sports" && prev && prev.kind !== s.kind;
                 return (
-                  <button
-                    key={s.id}
-                    onClick={() => selectSource(s.id)}
-                    className="shrink-0 px-3 py-1 rounded-lg text-[11.5px] whitespace-nowrap transition-all active:scale-95"
-                    style={{
-                      background: active ? "var(--accent-light)" : "transparent",
-                      color: active ? "var(--accent)" : "var(--text-secondary)",
-                      border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
-                      fontWeight: active ? 700 : 600,
-                    }}
-                    title={s.name}
-                  >
-                    {s.short}
-                  </button>
+                  <span key={s.id} className="flex items-center gap-1.5 shrink-0">
+                    {newKind && <span className="w-px h-4 mx-0.5" style={{ background: "var(--border)" }} />}
+                    <Chip active={sourceId === s.id} onClick={() => toggleSource(s.id)} title={s.name}>
+                      {s.short}
+                    </Chip>
+                  </span>
                 );
               })}
             </div>
@@ -289,7 +336,7 @@ export default function NewsPage() {
                   })}
                   {alerts.length > 2 && (
                     <button
-                      onClick={() => setView("alerts")}
+                      onClick={() => switchView("alerts")}
                       className="text-[12px] font-bold text-center py-1"
                       style={{ color: "var(--danger)" }}
                     >
@@ -301,24 +348,12 @@ export default function NewsPage() {
 
               {error || visible.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
-                  <span className="text-4xl mb-3">{view === "alerts" ? "☀️" : "\u{1F4F0}"}</span>
+                  <span className="text-4xl mb-3">{view === "alerts" ? "☀️" : view === "sports" ? "\u{1F3C8}" : "\u{1F4F0}"}</span>
                   <p className="text-[15px] font-bold mb-1" style={{ color: "var(--navy)" }}>
-                    {error
-                      ? "News unavailable"
-                      : view === "alerts"
-                        ? "No active alerts"
-                        : view === "nearby"
-                          ? "Nothing near us right now"
-                          : "No stories yet"}
+                    {emptyTitle}
                   </p>
                   <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>
-                    {error
-                      ? "Couldn't reach the news feeds. Try again in a bit."
-                      : view === "alerts"
-                        ? "All clear from the National Weather Service for Maricopa County."
-                        : view === "nearby"
-                          ? "No stories mentioning our area yet today. Check All Arizona."
-                          : "This source hasn't published anything recently."}
+                    {emptyBody}
                   </p>
                 </div>
               ) : (
@@ -327,8 +362,10 @@ export default function NewsPage() {
                   style={{ background: "var(--card)", border: "1px solid var(--border)" }}
                 >
                   {visible.map((item) => {
-                    const isAlert = item.kind === "alert";
-                    const srcShort = sources.find((s) => s.id === item.source)?.short ?? item.sourceName;
+                    const isAlert = item.group === "alert";
+                    // Byline: the picked source if it carried the story, else the first one
+                    const bylineId = sourceId && item.sources.includes(sourceId) ? sourceId : item.source;
+                    const byline = sources.find((s) => s.id === bylineId)?.short ?? item.sourceName;
                     return (
                       <a
                         key={item.link + item.title}
@@ -344,7 +381,7 @@ export default function NewsPage() {
                               className="text-[11px] font-bold"
                               style={{ color: isAlert ? severityColor(item.severity) : "var(--accent)" }}
                             >
-                              {isAlert ? "⚠ NWS Alert" : srcShort}
+                              {isAlert ? "⚠ NWS Alert" : byline}
                             </span>
                             <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
                               {isAlert && item.expiresAt ? untilTime(item.expiresAt) : timeAgo(item.publishedAt)}
@@ -373,6 +410,9 @@ export default function NewsPage() {
                             alt=""
                             className="w-[84px] h-[84px] rounded-xl object-cover shrink-0"
                             loading="lazy"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
                           />
                         )}
                       </a>
@@ -385,9 +425,9 @@ export default function NewsPage() {
 
           {!loading && (
             <p className="text-[11px] text-center py-4 leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              {KIND_ORDER.filter((k) => k !== "alert")
+              {[...NEWS_KINDS, ...SPORTS_KINDS]
                 .map((k) => {
-                  const names = liveSources.filter((s) => s.kind === k).map((s) => s.short);
+                  const names = sources.filter((s) => s.kind === k && s.count > 0).map((s) => s.short);
                   return names.length ? `${KIND_LABEL[k]}: ${names.join(", ")}` : null;
                 })
                 .filter(Boolean)
