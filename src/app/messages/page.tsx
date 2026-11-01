@@ -83,7 +83,7 @@ export default function MessagesPage() {
                   return (
                     <li key={conv.otherUser.id} className="ui-row">
                       <Link href={`/messages/${conv.otherUser.id}`} className="flex items-center gap-3.5 px-4 py-3.5 min-h-[64px]">
-                        <Avatar initials={conv.otherUser.avatarInitials} size={46} />
+                        <Avatar initials={conv.otherUser.avatarInitials} src={conv.otherUser.avatarUrl} size={46} />
                         <span className="flex-1 min-w-0">
                           <span className="flex items-baseline justify-between gap-2">
                             <span className="text-[16px] truncate" style={{ color: "var(--text)", fontWeight: unread ? 700 : 600 }}>
@@ -146,7 +146,7 @@ export default function MessagesPage() {
                       {filtered.map((n: any) => (
                         <li key={n.id} className="ui-row">
                           <button type="button" onClick={() => router.push(`/messages/${n.id}`)} className="flex items-center gap-3.5 px-4 py-3 w-full text-left min-h-[60px]">
-                            <Avatar initials={n.avatar_initials} size={42} />
+                            <Avatar initials={n.avatar_initials} src={n.avatar_url} size={42} />
                             <span className="flex-1 min-w-0">
                               <span className="block text-[16px] font-semibold truncate" style={{ color: "var(--text)" }}>{n.name}</span>
                               <span className="block text-[14px]" style={{ color: "var(--text-2)" }}>

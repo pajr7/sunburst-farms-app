@@ -103,7 +103,7 @@ export default function PostsPage() {
                     <PostCard
                       post={{
                         id: post.id,
-                        author: { id: post.author?.id, name: post.author?.name ?? "Neighbor", avatar: post.author?.avatar_initials ?? "??", address: post.author?.section ?? "" },
+                        author: { id: post.author?.id, name: post.author?.name ?? "Neighbor", avatar: post.author?.avatar_initials ?? "??", avatarUrl: post.author?.avatar_url, address: post.author?.section ?? "" },
                         category: post.category,
                         title: post.title,
                         body: post.body,

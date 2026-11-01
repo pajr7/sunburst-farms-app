@@ -90,7 +90,7 @@ export default function Home() {
             irrigation={irrigation}
             posts={posts.map((p) => ({
               id: p.id,
-              author: { id: p.author?.id, name: p.author?.name ?? "Neighbor", avatar: p.author?.avatar_initials ?? "??", address: p.author?.section ?? "" },
+              author: { id: p.author?.id, name: p.author?.name ?? "Neighbor", avatar: p.author?.avatar_initials ?? "??", avatarUrl: p.author?.avatar_url, address: p.author?.section ?? "" },
               category: p.category,
               title: p.title,
               body: p.body,

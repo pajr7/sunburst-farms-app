@@ -61,7 +61,7 @@ export default function EventCard({ event, index = 0, onRsvp, isRsvped = false, 
               <span className="truncate">{event.location}</span>
             </p>
             <p className="flex items-center gap-2 text-[14px] mt-2" style={{ color: "var(--text-2)" }}>
-              <Avatar initials={event.author?.avatar ?? "?"} size={22} />
+              <Avatar initials={event.author?.avatar ?? "?"} src={event.author?.avatarUrl} size={22} />
               Hosted by {event.author?.name ?? "a neighbor"}
             </p>
           </div>

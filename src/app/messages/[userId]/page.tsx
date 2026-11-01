@@ -96,7 +96,7 @@ function ConversationPageInner() {
           </Link>
           {otherUser ? (
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <Avatar initials={otherUser.avatar_initials} size={40} />
+              <Avatar initials={otherUser.avatar_initials} src={otherUser.avatar_url} size={40} />
               <div className="min-w-0">
                 <h1 className="text-[17px] font-bold truncate leading-tight" style={{ color: "var(--text)" }}>
                   {otherUser.name}

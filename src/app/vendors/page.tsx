@@ -9,6 +9,7 @@ import Button from "@/components/ui/Button";
 import FilterChips from "@/components/ui/FilterChips";
 import EmptyState from "@/components/ui/EmptyState";
 import { Panel, Spinner, StatusBadge, SectionTitle } from "@/components/ui/Primitives";
+import SourceLogo from "@/components/ui/SourceLogo";
 
 const OPTIONS = [{ value: "all", label: "All" }, ...VENDOR_CATEGORIES.map((c) => ({ value: c.key, label: c.label }))];
 
@@ -33,7 +34,7 @@ export default function VendorsPage() {
       <div className="flex flex-col min-h-screen pb-24 md:pb-8" style={{ background: "var(--bg)" }}>
         <PageHeader
           title="Local services"
-          subtitle="Recommended by neighbors, reviewed by the board"
+          subtitle="Recommended by neighbors"
           back="/community"
           actions={<Button href="/vendors/recommend" size="sm" variant="secondary" icon="thumbs-up">Recommend</Button>}
         >
@@ -90,8 +91,9 @@ function VendorCard({ vendor, featured = false }: { vendor: any; featured?: bool
       <Panel>
         {featured && vendor.image_url && <img src={vendor.image_url} alt="" className="w-full object-cover" style={{ height: 150 }} loading="lazy" />}
         <div className="p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
+          <div className="flex items-start gap-3">
+            <SourceLogo src={vendor.logo_url} name={vendor.business_name} size={48} rounded={12} />
+            <div className="min-w-0 flex-1">
               <h3 className="text-[17px] font-bold leading-snug" style={{ color: "var(--text)" }}>
                 {vendor.business_name}
               </h3>

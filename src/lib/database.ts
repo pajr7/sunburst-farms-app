@@ -1,7 +1,9 @@
 import { supabase } from "./supabase";
 import type { Category } from "./data";
+import { isDemo, demo } from "./demo";
 
 export async function uploadPostImage(userId: string, file: File): Promise<string | null> {
+  if (isDemo()) return demo.uploadImage(file) as any;
   const ext = file.name.split(".").pop();
   const path = `${userId}/${Date.now()}.${ext}`;
   const { error } = await supabase.storage.from("post-images").upload(path, file);
@@ -11,6 +13,7 @@ export async function uploadPostImage(userId: string, file: File): Promise<strin
 }
 
 export async function getPosts(category?: Category) {
+  if (isDemo()) return demo.getPosts(category) as any;
   let query = supabase
     .from("posts")
     .select(`
@@ -29,6 +32,7 @@ export async function getPosts(category?: Category) {
 }
 
 export async function createPost(authorId: string, category: Category, title: string, body: string, imageUrl?: string) {
+  if (isDemo()) return demo.createPost(authorId, category, title, body, imageUrl) as any;
   const { data, error } = await supabase
     .from("posts")
     .insert({ author_id: authorId, category, title, body, image_url: imageUrl })
@@ -39,6 +43,7 @@ export async function createPost(authorId: string, category: Category, title: st
 }
 
 export async function toggleLike(postId: string, userId: string) {
+  if (isDemo()) return demo.toggleLike(postId, userId) as any;
   const { data: existing } = await supabase
     .from("likes")
     .select("*")
@@ -56,6 +61,7 @@ export async function toggleLike(postId: string, userId: string) {
 }
 
 export async function getEvents() {
+  if (isDemo()) return demo.getEvents() as any;
   const { data, error } = await supabase
     .from("events")
     .select(`
@@ -70,6 +76,7 @@ export async function getEvents() {
 }
 
 export async function getEvent(eventId: string) {
+  if (isDemo()) return demo.getEvent(eventId) as any;
   const { data, error } = await supabase
     .from("events")
     .select(`
@@ -84,6 +91,7 @@ export async function getEvent(eventId: string) {
 }
 
 export async function createEvent(authorId: string, title: string, description: string, eventDate: string, eventTime: string, location: string, imageUrl?: string) {
+  if (isDemo()) return demo.createEvent(authorId, title, description, eventDate, eventTime, location, imageUrl) as any;
   const { data, error } = await supabase
     .from("events")
     .insert({ author_id: authorId, title, description, event_date: eventDate, event_time: eventTime, location, image_url: imageUrl ?? null })
@@ -94,6 +102,7 @@ export async function createEvent(authorId: string, title: string, description: 
 }
 
 export async function toggleRsvp(eventId: string, userId: string) {
+  if (isDemo()) return demo.toggleRsvp(eventId, userId) as any;
   const { data: existing } = await supabase
     .from("rsvps")
     .select("*")
@@ -111,6 +120,7 @@ export async function toggleRsvp(eventId: string, userId: string) {
 }
 
 export async function getNotifications(userId: string) {
+  if (isDemo()) return demo.getNotifications(userId) as any;
   const { data, error } = await supabase
     .from("notifications")
     .select("*")
@@ -122,10 +132,12 @@ export async function getNotifications(userId: string) {
 }
 
 export async function markNotificationRead(notifId: string) {
+  if (isDemo()) return demo.markNotificationRead(notifId) as any;
   await supabase.from("notifications").update({ read: true }).eq("id", notifId);
 }
 
 export async function getPendingProfiles() {
+  if (isDemo()) return demo.getPendingProfiles() as any;
   const { data, error } = await supabase
     .from("profiles")
     .select("*")
@@ -136,6 +148,7 @@ export async function getPendingProfiles() {
 }
 
 export async function approveProfile(profileId: string) {
+  if (isDemo()) return demo.approveProfile(profileId) as any;
   const { error } = await supabase
     .from("profiles")
     .update({ status: "approved" })
@@ -150,6 +163,7 @@ export async function approveProfile(profileId: string) {
 }
 
 export async function denyProfile(profileId: string) {
+  if (isDemo()) return demo.denyProfile(profileId) as any;
   const { error } = await supabase
     .from("profiles")
     .update({ status: "denied" })
@@ -158,6 +172,7 @@ export async function denyProfile(profileId: string) {
 }
 
 export async function getAllProfiles() {
+  if (isDemo()) return demo.getAllProfiles() as any;
   const { data, error } = await supabase
     .from("profiles")
     .select("*")
@@ -167,6 +182,7 @@ export async function getAllProfiles() {
 }
 
 export async function addComment(postId: string, authorId: string, body: string) {
+  if (isDemo()) return demo.addComment(postId, authorId, body) as any;
   const { data, error } = await supabase
     .from("comments")
     .insert({ post_id: postId, author_id: authorId, body })
@@ -177,6 +193,7 @@ export async function addComment(postId: string, authorId: string, body: string)
 }
 
 export async function getComments(postId: string) {
+  if (isDemo()) return demo.getComments(postId) as any;
   const { data, error } = await supabase
     .from("comments")
     .select(`
@@ -190,6 +207,7 @@ export async function getComments(postId: string) {
 }
 
 export async function getListing(listingId: string) {
+  if (isDemo()) return demo.getListing(listingId) as any;
   const { data, error } = await supabase
     .from("listings")
     .select(`
@@ -204,6 +222,7 @@ export async function getListing(listingId: string) {
 }
 
 export async function getListings(category?: string) {
+  if (isDemo()) return demo.getListings(category) as any;
   let query = supabase
     .from("listings")
     .select(`
@@ -231,6 +250,7 @@ export async function createListing(
   isFree: boolean,
   imageUrls?: string[]
 ) {
+  if (isDemo()) return demo.createListing(sellerId, title, description, category, condition, price, isFree, imageUrls) as any;
   const { data, error } = await supabase
     .from("listings")
     .insert({
@@ -261,6 +281,7 @@ export async function createListing(
 }
 
 export async function markListingSold(listingId: string) {
+  if (isDemo()) return demo.updateListingStatus(listingId, "sold") as any;
   const { error } = await supabase
     .from("listings")
     .update({ status: "sold" })
@@ -269,6 +290,7 @@ export async function markListingSold(listingId: string) {
 }
 
 export async function uploadListingImage(userId: string, file: File): Promise<string | null> {
+  if (isDemo()) return demo.uploadImage(file) as any;
   const ext = file.name.split(".").pop();
   const path = `listings/${userId}/${Date.now()}.${ext}`;
   const { error } = await supabase.storage.from("post-images").upload(path, file);
@@ -278,6 +300,7 @@ export async function uploadListingImage(userId: string, file: File): Promise<st
 }
 
 export async function getConversations(userId: string) {
+  if (isDemo()) return demo.getConversations(userId) as any;
   const { data, error } = await supabase
     .from("messages")
     .select(`
@@ -313,6 +336,7 @@ export async function getConversations(userId: string) {
 }
 
 export async function getMessages(userId: string, otherUserId: string) {
+  if (isDemo()) return demo.getMessages(userId, otherUserId) as any;
   const { data, error } = await supabase
     .from("messages")
     .select(`
@@ -328,6 +352,7 @@ export async function getMessages(userId: string, otherUserId: string) {
 }
 
 export async function sendMessage(senderId: string, recipientId: string, body: string) {
+  if (isDemo()) return demo.sendMessage(senderId, recipientId, body) as any;
   const { data, error } = await supabase
     .from("messages")
     .insert({ sender_id: senderId, recipient_id: recipientId, body })
@@ -338,6 +363,7 @@ export async function sendMessage(senderId: string, recipientId: string, body: s
 }
 
 export async function markMessagesRead(userId: string, otherUserId: string) {
+  if (isDemo()) return demo.markMessagesRead(userId, otherUserId) as any;
   await supabase
     .from("messages")
     .update({ read: true })
@@ -347,6 +373,7 @@ export async function markMessagesRead(userId: string, otherUserId: string) {
 }
 
 export async function getProfile(userId: string) {
+  if (isDemo()) return demo.getProfile(userId) as any;
   const { data, error } = await supabase
     .from("profiles")
     .select("*")
@@ -357,6 +384,7 @@ export async function getProfile(userId: string) {
 }
 
 export async function uploadEventPhoto(userId: string, eventId: string, file: File): Promise<string | null> {
+  if (isDemo()) return demo.uploadImage(file) as any;
   const ext = file.name.split(".").pop();
   const path = `${userId}/event-${eventId}-${Date.now()}.${ext}`;
   const { error } = await supabase.storage.from("post-images").upload(path, file);
@@ -369,6 +397,7 @@ export async function uploadEventPhoto(userId: string, eventId: string, file: Fi
 }
 
 export async function addEventPhoto(eventId: string, userId: string, imageUrl: string) {
+  if (isDemo()) return demo.addEventPhoto(eventId, userId, imageUrl) as any;
   const { data, error } = await supabase
     .from("event_photos")
     .insert({ event_id: eventId, user_id: userId, image_url: imageUrl })
@@ -379,6 +408,7 @@ export async function addEventPhoto(eventId: string, userId: string, imageUrl: s
 }
 
 export async function getEventPhotos(eventId: string) {
+  if (isDemo()) return demo.getEventPhotos(eventId) as any;
   const { data, error } = await supabase
     .from("event_photos")
     .select(`*, uploader:profiles!user_id(name, avatar_initials)`)
@@ -389,6 +419,7 @@ export async function getEventPhotos(eventId: string) {
 }
 
 export async function deleteEventPhoto(photoId: string, userId: string) {
+  if (isDemo()) return demo.deleteEventPhoto(photoId) as any;
   const { error } = await supabase
     .from("event_photos")
     .delete()
@@ -398,6 +429,7 @@ export async function deleteEventPhoto(photoId: string, userId: string) {
 }
 
 export async function getVendors(category?: string) {
+  if (isDemo()) return demo.getVendors(category) as any;
   let query = supabase
     .from("vendors")
     .select("*, recommender:profiles!recommended_by(name)")
@@ -413,6 +445,7 @@ export async function getVendors(category?: string) {
 }
 
 export async function getPendingVendors() {
+  if (isDemo()) return demo.getPendingVendors() as any;
   const { data, error } = await supabase
     .from("vendors")
     .select("*, recommender:profiles!recommended_by(name)")
@@ -432,6 +465,7 @@ export async function recommendVendor(
   website?: string,
   imageUrl?: string,
 ) {
+  if (isDemo()) return demo.recommendVendor(userId, businessName, category, phone, description, email, website) as any;
   const { data, error } = await supabase
     .from("vendors")
     .insert({
@@ -451,6 +485,7 @@ export async function recommendVendor(
 }
 
 export async function approveVendor(vendorId: string, tier: "free" | "featured" = "free") {
+  if (isDemo()) return demo.approveVendor(vendorId, tier) as any;
   const { error } = await supabase
     .from("vendors")
     .update({ status: "approved", tier })
@@ -459,6 +494,7 @@ export async function approveVendor(vendorId: string, tier: "free" | "featured" 
 }
 
 export async function denyVendor(vendorId: string) {
+  if (isDemo()) return demo.denyVendor(vendorId) as any;
   const { error } = await supabase
     .from("vendors")
     .update({ status: "denied" })
@@ -467,6 +503,7 @@ export async function denyVendor(vendorId: string) {
 }
 
 export async function updateVendorTier(vendorId: string, tier: "free" | "featured") {
+  if (isDemo()) return undefined as any;
   const { error } = await supabase
     .from("vendors")
     .update({ tier })
@@ -475,6 +512,7 @@ export async function updateVendorTier(vendorId: string, tier: "free" | "feature
 }
 
 export async function deleteVendor(vendorId: string) {
+  if (isDemo()) return undefined as any;
   const { error } = await supabase
     .from("vendors")
     .delete()
@@ -483,6 +521,7 @@ export async function deleteVendor(vendorId: string) {
 }
 
 export async function updateProfileVisibility(profileId: string, showAddress: boolean) {
+  if (isDemo()) return demo.updateProfileVisibility() as any;
   const { error } = await supabase
     .from("profiles")
     .update({ show_address: showAddress })
@@ -493,6 +532,7 @@ export async function updateProfileVisibility(profileId: string, showAddress: bo
 /* ---------- Added in the redesign ---------- */
 
 export async function getPost(postId: string) {
+  if (isDemo()) return demo.getPost(postId) as any;
   const { data, error } = await supabase
     .from("posts")
     .select(`
@@ -509,6 +549,7 @@ export async function getPost(postId: string) {
 
 /** Authors mark their own give-away post as claimed (RLS only allows author updates). */
 export async function markPostClaimed(postId: string, authorId: string, claimed: boolean) {
+  if (isDemo()) return demo.markPostClaimed(postId, authorId, claimed) as any;
   const { error } = await supabase
     .from("posts")
     .update({ claimed_by: claimed ? authorId : null })
@@ -518,6 +559,7 @@ export async function markPostClaimed(postId: string, authorId: string, claimed:
 }
 
 export async function deletePost(postId: string, authorId: string) {
+  if (isDemo()) return demo.deletePost(postId) as any;
   const { error, count } = await supabase
     .from("posts")
     .delete({ count: "exact" })
@@ -528,6 +570,7 @@ export async function deletePost(postId: string, authorId: string) {
 }
 
 export async function deleteListing(listingId: string, sellerId: string) {
+  if (isDemo()) return demo.deleteListing(listingId) as any;
   const { error, count } = await supabase
     .from("listings")
     .delete({ count: "exact" })
@@ -538,11 +581,13 @@ export async function deleteListing(listingId: string, sellerId: string) {
 }
 
 export async function updateListingStatus(listingId: string, status: "available" | "pending" | "sold") {
+  if (isDemo()) return demo.updateListingStatus(listingId, status) as any;
   const { error } = await supabase.from("listings").update({ status }).eq("id", listingId);
   if (error) throw error;
 }
 
 export async function getMyListings(sellerId: string) {
+  if (isDemo()) return demo.getMyListings(sellerId) as any;
   const { data, error } = await supabase
     .from("listings")
     .select(`*, listing_images(id, image_url, position)`)
@@ -553,6 +598,7 @@ export async function getMyListings(sellerId: string) {
 }
 
 export async function deleteEvent(eventId: string, authorId: string) {
+  if (isDemo()) return demo.deleteEvent(eventId) as any;
   const { error, count } = await supabase
     .from("events")
     .delete({ count: "exact" })
@@ -563,6 +609,7 @@ export async function deleteEvent(eventId: string, authorId: string) {
 }
 
 export async function getUnreadCounts(userId: string) {
+  if (isDemo()) return demo.getUnreadCounts(userId) as any;
   const [msgs, notifs] = await Promise.all([
     supabase.from("messages").select("id", { count: "exact", head: true }).eq("recipient_id", userId).eq("read", false),
     supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("read", false),
@@ -587,6 +634,7 @@ export interface IrrigationUpdate {
 }
 
 export async function getLatestIrrigation(): Promise<IrrigationUpdate | null | undefined> {
+  if (isDemo()) return demo.getLatestIrrigation() as any;
   const { data, error } = await supabase
     .from("irrigation_updates")
     .select("*, author:profiles!author_id(name)")
@@ -601,6 +649,7 @@ export async function getLatestIrrigation(): Promise<IrrigationUpdate | null | u
 }
 
 export async function getIrrigationHistory(limit = 10): Promise<IrrigationUpdate[]> {
+  if (isDemo()) return demo.getIrrigationHistory() as any;
   const { data, error } = await supabase
     .from("irrigation_updates")
     .select("*, author:profiles!author_id(name)")
@@ -617,6 +666,7 @@ export async function publishIrrigationUpdate(
   windowEnd: string | null,
   note: string | null,
 ) {
+  if (isDemo()) return demo.publishIrrigationUpdate(authorId, status, windowStart, windowEnd, note) as any;
   const { data, error } = await supabase
     .from("irrigation_updates")
     .insert({ author_id: authorId, status, window_start: windowStart, window_end: windowEnd, note })
@@ -627,6 +677,7 @@ export async function publishIrrigationUpdate(
 }
 
 export async function notifyAllApproved(type: string, message: string) {
+  if (isDemo()) return demo.notifyAllApproved() as any;
   // Fan out a notification to every approved resident. Only used by board tools.
   const { data: profiles, error } = await supabase.from("profiles").select("id").eq("status", "approved");
   if (error) throw error;

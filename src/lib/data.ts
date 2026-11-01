@@ -20,7 +20,7 @@ export type ListingCondition = "new" | "like_new" | "good" | "fair";
 
 export interface Post {
   id: string;
-  author: { id?: string; name: string; avatar: string; address: string };
+  author: { id?: string; name: string; avatar: string; avatarUrl?: string | null; address: string };
   category: Category;
   title: string;
   body: string;
@@ -53,7 +53,7 @@ export interface Event {
   location: string;
   description: string;
   attendees: number;
-  author: { name: string; avatar: string };
+  author: { name: string; avatar: string; avatarUrl?: string | null };
   image?: string;
   attendeeInitials?: string[];
 }

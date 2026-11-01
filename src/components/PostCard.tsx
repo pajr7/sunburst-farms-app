@@ -68,7 +68,7 @@ export default function PostCard({ post, index = 0, onLike, isLiked = false, isO
     <article className="px-4 pt-4 pb-3" aria-labelledby={`post-${post.id}-title`} data-index={index}>
       {/* Author row */}
       <div className="flex items-start gap-3">
-        <Avatar initials={post.author.avatar} size={40} />
+        <Avatar initials={post.author.avatar} src={post.author.avatarUrl} size={40} />
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-1.5 flex-wrap leading-tight">
             <span className="text-[15px] font-bold truncate" style={{ color: "var(--text)" }}>

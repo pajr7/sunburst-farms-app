@@ -64,7 +64,7 @@ export default function PageHeader({
               {eyebrow}
             </p>
           )}
-          <h1 className="text-[24px] font-bold tracking-tight leading-tight truncate" style={{ color: "var(--text)" }}>
+          <h1 className="text-[24px] font-bold tracking-tight leading-tight" style={{ color: "var(--text)" }}>
             {title}
           </h1>
           {subtitle && (

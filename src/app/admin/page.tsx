@@ -127,7 +127,7 @@ function AdminPageInner() {
                 <li key={p.id} className="list-none">
                   <Panel padded>
                     <div className="flex items-center gap-3">
-                      <Avatar initials={p.avatar_initials} size={44} />
+                      <Avatar initials={p.avatar_initials} src={(p as any).avatar_url} size={44} />
                       <div className="flex-1 min-w-0">
                         <p className="text-[16px] font-semibold" style={{ color: "var(--text)" }}>{p.name}</p>
                         <p className="text-[14px]" style={{ color: "var(--text-2)" }}>{p.section} &middot; {p.address}</p>

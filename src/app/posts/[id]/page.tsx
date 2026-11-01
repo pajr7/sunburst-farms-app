@@ -129,6 +129,7 @@ export default function PostDetailPage() {
                   id: post.author?.id,
                   name: post.author?.name ?? "Neighbor",
                   avatar: post.author?.avatar_initials ?? "??",
+                  avatarUrl: post.author?.avatar_url,
                   address: post.author?.section ?? "",
                 },
                 category: post.category,
@@ -186,7 +187,7 @@ export default function PostDetailPage() {
               <ol>
                 {comments.map((c) => (
                   <li key={c.id} className="ui-row flex gap-3 px-4 py-3.5">
-                    <Avatar initials={c.author?.avatar_initials ?? "?"} size={34} />
+                    <Avatar initials={c.author?.avatar_initials ?? "?"} src={c.author?.avatar_url} size={34} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline gap-1.5 flex-wrap">
                         <span className="text-[15px] font-bold" style={{ color: "var(--text)" }}>

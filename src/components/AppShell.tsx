@@ -8,6 +8,7 @@ import Avatar from "./ui/Avatar";
 import { useAuth } from "@/lib/auth-context";
 import { getUnreadCounts } from "@/lib/database";
 import { COMMUNITY_NAME } from "@/lib/data";
+import { isDemo, setDemo, setDemoMe } from "@/lib/demo";
 
 interface NavItem {
   label: string;
@@ -241,10 +242,54 @@ function MobileTabBar({ unread }: { unread: { messages: number } }) {
   );
 }
 
+/** Sample-content mode: ?demo=1 turns it on, ?demo=0 turns it off, Account has a switch. */
+function useDemoMode() {
+  const { user, profile } = useAuth();
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("demo");
+    if (q === "1") setDemo(true);
+    if (q === "0") setDemo(false);
+    setOn(isDemo());
+    if (q !== null) {
+      params.delete("demo");
+      const qs = params.toString();
+      window.history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    }
+  }, []);
+  useEffect(() => {
+    if (user) setDemoMe(user.id, profile?.name, profile?.avatar_initials);
+  }, [user, profile]);
+  return on;
+}
+
+function DemoBanner() {
+  return (
+    <div className="px-4 md:px-6 pt-[calc(env(safe-area-inset-top,0px)_+_8px)] md:pt-3" style={{ background: "var(--warning-soft)" }}>
+      <div className="mx-auto w-full max-w-[640px] lg:max-w-[760px] flex items-center gap-2 py-1.5 text-[13px]" style={{ color: "var(--warning)" }}>
+        <Icon name="eye" size={15} strokeWidth={2.2} />
+        <span className="flex-1 font-semibold">Sample content for review. Nothing here is real or saved.</span>
+        <button
+          type="button"
+          onClick={() => {
+            setDemo(false);
+            window.location.href = "/";
+          }}
+          className="font-bold underline underline-offset-2 shrink-0"
+        >
+          Turn off
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const hideNav = pathname === "/join" || pathname === "/login";
   const unread = useUnread();
+  const demoOn = useDemoMode();
 
   if (hideNav) return <>{children}</>;
 
@@ -252,6 +297,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <>
       <SideNav unread={unread} />
       <div className="md:ml-64 min-h-screen">
+        {demoOn && <DemoBanner />}
         <div className="mx-auto w-full max-w-[640px] lg:max-w-[760px]">{children}</div>
       </div>
       <MobileTabBar unread={unread} />

@@ -183,7 +183,7 @@ export default function EventDetailPage() {
               </div>
             </div>
             <div className="ui-row flex items-center gap-3.5 px-4 py-3.5">
-              <Avatar initials={event.author?.avatar_initials ?? "?"} size={40} />
+              <Avatar initials={event.author?.avatar_initials ?? "?"} src={event.author?.avatar_url} size={40} />
               <div className="flex-1 min-w-0">
                 <p className="text-[16px] font-semibold" style={{ color: "var(--text)" }}>
                   {event.author?.name ?? "Neighbor"}

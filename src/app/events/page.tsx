@@ -90,7 +90,7 @@ export default function EventsPage() {
                         description: event.description,
                         attendees: event.rsvps?.length ?? 0,
                         image: event.image_url,
-                        author: { name: event.author?.name ?? "Neighbor", avatar: event.author?.avatar_initials ?? "??" },
+                        author: { name: event.author?.name ?? "Neighbor", avatar: event.author?.avatar_initials ?? "??", avatarUrl: event.author?.avatar_url }
                       }}
                       index={i}
                       onRsvp={() => handleRsvp(event.id)}

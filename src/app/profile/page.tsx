@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { updateProfileVisibility } from "@/lib/database";
@@ -11,6 +11,7 @@ import Button from "@/components/ui/Button";
 import Avatar from "@/components/ui/Avatar";
 import Icon from "@/components/ui/Icon";
 import { Panel, ListRow, SectionTitle, Notice } from "@/components/ui/Primitives";
+import { isDemo, setDemo } from "@/lib/demo";
 
 export default function ProfilePage() {
   const { profile, signOut, refreshProfile } = useAuth();
@@ -18,6 +19,8 @@ export default function ProfilePage() {
   const [toggling, setToggling] = useState(false);
   const [confirmOut, setConfirmOut] = useState(false);
   const [shared, setShared] = useState<string | null>(null);
+  const [demoOn, setDemoOn] = useState(false);
+  useEffect(() => setDemoOn(isDemo()), []);
 
   async function handleSignOut() {
     await signOut();
@@ -118,6 +121,38 @@ export default function ProfilePage() {
             <ListRow href="/community" icon="building" title="Community hub" description="Events, irrigation, services, association" />
             <ListRow href="/market/mine" icon="tag" title="Your listings" description="Update or remove items you've listed" />
             {profile?.role === "admin" && <ListRow href="/admin" icon="shield" iconTone="warning" title="Board tools" description="Approvals, services, irrigation updates" />}
+          </Panel>
+
+          <SectionTitle>Preview</SectionTitle>
+          <Panel>
+            <div className="ui-row flex items-center gap-3.5 px-4 py-3.5">
+              <span className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--warning-soft)", color: "var(--warning)" }}>
+                <Icon name="eye" size={20} />
+              </span>
+              <label htmlFor="demo-mode" className="flex-1 min-w-0 cursor-pointer">
+                <span className="block text-[16px] font-semibold" style={{ color: "var(--text)" }}>
+                  Show sample content
+                </span>
+                <span className="block text-[14px] mt-0.5" style={{ color: "var(--text-2)" }}>
+                  Fills every screen with made-up neighbors, posts, listings, and businesses so you can review the layout. Nothing is saved.
+                </span>
+              </label>
+              <button
+                id="demo-mode"
+                type="button"
+                role="switch"
+                aria-checked={demoOn}
+                onClick={() => {
+                  setDemo(!demoOn);
+                  window.location.href = "/";
+                }}
+                className="relative w-[52px] h-8 rounded-full shrink-0 transition-colors"
+                style={{ background: demoOn ? "var(--warning)" : "var(--border-strong)" }}
+              >
+                <span className="absolute top-1 w-6 h-6 rounded-full transition-[left]" style={{ background: "white", left: demoOn ? 24 : 4, boxShadow: "var(--shadow-sm)" }} />
+                <span className="sr-only">{demoOn ? "On" : "Off"}</span>
+              </button>
+            </div>
           </Panel>
 
           <SectionTitle>Help</SectionTitle>

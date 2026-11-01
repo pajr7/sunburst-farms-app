@@ -136,7 +136,7 @@ export default function HomeOverview({ firstName, posts, listings, events, news,
                 return (
                   <li key={p.id} className="ui-row">
                     <Link href={`/posts/${p.id}`} className="flex gap-3 px-4 py-3.5">
-                      <Avatar initials={p.author.avatar} size={38} />
+                      <Avatar initials={p.author.avatar} src={p.author.avatarUrl} size={38} />
                       <span className="flex-1 min-w-0">
                         <span className="flex items-center gap-1.5 text-[13px]">
                           <span className="font-semibold truncate" style={{ color: "var(--text-2)" }}>{p.author.name}</span>

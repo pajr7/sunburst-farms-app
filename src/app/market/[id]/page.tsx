@@ -145,7 +145,7 @@ export default function ListingDetailPage() {
           <SectionTitle>Seller</SectionTitle>
           <Panel>
             <div className="flex items-center gap-3.5 px-4 py-3.5">
-              <Avatar initials={listing.seller?.avatar_initials ?? "??"} size={44} />
+              <Avatar initials={listing.seller?.avatar_initials ?? "??"} src={listing.seller?.avatar_url} size={44} />
               <div className="flex-1 min-w-0">
                 <p className="text-[16px] font-semibold" style={{ color: "var(--text)" }}>
                   {listing.seller?.name ?? "Neighbor"}
