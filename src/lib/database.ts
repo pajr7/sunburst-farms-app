@@ -15,7 +15,7 @@ export async function getPosts(category?: Category) {
     .from("posts")
     .select(`
       *,
-      author:profiles!author_id(name, avatar_initials, address, section),
+      author:profiles!author_id(id, name, avatar_initials, address, section, show_address),
       likes(user_id),
       comments(id)
     `)
@@ -488,4 +488,151 @@ export async function updateProfileVisibility(profileId: string, showAddress: bo
     .update({ show_address: showAddress })
     .eq("id", profileId);
   if (error) throw error;
+}
+
+/* ---------- Added in the redesign ---------- */
+
+export async function getPost(postId: string) {
+  const { data, error } = await supabase
+    .from("posts")
+    .select(`
+      *,
+      author:profiles!author_id(id, name, avatar_initials, address, section, show_address),
+      likes(user_id),
+      comments(id)
+    `)
+    .eq("id", postId)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/** Authors mark their own give-away post as claimed (RLS only allows author updates). */
+export async function markPostClaimed(postId: string, authorId: string, claimed: boolean) {
+  const { error } = await supabase
+    .from("posts")
+    .update({ claimed_by: claimed ? authorId : null })
+    .eq("id", postId)
+    .eq("author_id", authorId);
+  if (error) throw error;
+}
+
+export async function deletePost(postId: string, authorId: string) {
+  const { error, count } = await supabase
+    .from("posts")
+    .delete({ count: "exact" })
+    .eq("id", postId)
+    .eq("author_id", authorId);
+  if (error) throw error;
+  if (!count) throw new Error("not_permitted");
+}
+
+export async function deleteListing(listingId: string, sellerId: string) {
+  const { error, count } = await supabase
+    .from("listings")
+    .delete({ count: "exact" })
+    .eq("id", listingId)
+    .eq("seller_id", sellerId);
+  if (error) throw error;
+  if (!count) throw new Error("not_permitted");
+}
+
+export async function updateListingStatus(listingId: string, status: "available" | "pending" | "sold") {
+  const { error } = await supabase.from("listings").update({ status }).eq("id", listingId);
+  if (error) throw error;
+}
+
+export async function getMyListings(sellerId: string) {
+  const { data, error } = await supabase
+    .from("listings")
+    .select(`*, listing_images(id, image_url, position)`)
+    .eq("seller_id", sellerId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function deleteEvent(eventId: string, authorId: string) {
+  const { error, count } = await supabase
+    .from("events")
+    .delete({ count: "exact" })
+    .eq("id", eventId)
+    .eq("author_id", authorId);
+  if (error) throw error;
+  if (!count) throw new Error("not_permitted");
+}
+
+export async function getUnreadCounts(userId: string) {
+  const [msgs, notifs] = await Promise.all([
+    supabase.from("messages").select("id", { count: "exact", head: true }).eq("recipient_id", userId).eq("read", false),
+    supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("read", false),
+  ]);
+  return { messages: msgs.count ?? 0, notifications: notifs.count ?? 0 };
+}
+
+/* Irrigation status. Backed by the irrigation_updates table from
+   migrations/2026-11-01-irrigation.sql. Until that migration runs, these
+   return null and the Irrigation screen falls back to the association website. */
+
+export type IrrigationStatus = "awaiting" | "estimated" | "confirmed" | "delayed";
+
+export interface IrrigationUpdate {
+  id: string;
+  status: IrrigationStatus;
+  window_start: string | null;
+  window_end: string | null;
+  note: string | null;
+  created_at: string;
+  author?: { name: string } | null;
+}
+
+export async function getLatestIrrigation(): Promise<IrrigationUpdate | null | undefined> {
+  const { data, error } = await supabase
+    .from("irrigation_updates")
+    .select("*, author:profiles!author_id(name)")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    // Table missing or not readable: caller treats undefined as "feature not set up"
+    return undefined;
+  }
+  return data as IrrigationUpdate | null;
+}
+
+export async function getIrrigationHistory(limit = 10): Promise<IrrigationUpdate[]> {
+  const { data, error } = await supabase
+    .from("irrigation_updates")
+    .select("*, author:profiles!author_id(name)")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) return [];
+  return (data ?? []) as IrrigationUpdate[];
+}
+
+export async function publishIrrigationUpdate(
+  authorId: string,
+  status: IrrigationStatus,
+  windowStart: string | null,
+  windowEnd: string | null,
+  note: string | null,
+) {
+  const { data, error } = await supabase
+    .from("irrigation_updates")
+    .insert({ author_id: authorId, status, window_start: windowStart, window_end: windowEnd, note })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function notifyAllApproved(type: string, message: string) {
+  // Fan out a notification to every approved resident. Only used by board tools.
+  const { data: profiles, error } = await supabase.from("profiles").select("id").eq("status", "approved");
+  if (error) throw error;
+  const rows = (profiles ?? []).map((p) => ({ user_id: p.id, type, message }));
+  if (rows.length === 0) return 0;
+  const { error: insErr } = await supabase.from("notifications").insert(rows);
+  if (insErr) throw insErr;
+  return rows.length;
 }

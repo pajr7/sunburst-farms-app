@@ -1,206 +1,209 @@
 "use client";
 
+import { Suspense } from "react";
+
 import { useState, useEffect, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { getMessages, sendMessage, markMessagesRead, getProfile } from "@/lib/database";
 import { useAuth } from "@/lib/auth-context";
 import AuthGuard from "@/components/AuthGuard";
+import Button from "@/components/ui/Button";
+import Icon from "@/components/ui/Icon";
+import Avatar from "@/components/ui/Avatar";
+import Link from "next/link";
+import { Spinner, Notice } from "@/components/ui/Primitives";
 
-export default function ConversationPage() {
+type LocalMsg = { id: string; body: string; sender_id: string; created_at: string; state?: "sending" | "failed" };
+
+const KIND_LABEL: Record<string, string> = { listing: "listing", post: "post", event: "event" };
+
+function ConversationPageInner() {
   const params = useParams();
-  const router = useRouter();
+  const search = useSearchParams();
   const otherUserId = params.userId as string;
-  const [messages, setMessages] = useState<any[]>([]);
+  const about = search.get("about");
+  const kind = search.get("kind") ?? "post";
+  const [messages, setMessages] = useState<LocalMsg[]>([]);
   const [otherUser, setOtherUser] = useState<any>(null);
-  const [newMessage, setNewMessage] = useState("");
-  const [sending, setSending] = useState(false);
+  const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [loadError, setLoadError] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const { user } = useAuth();
 
   useEffect(() => {
     if (user && otherUserId) {
-      loadMessages();
-      loadOtherUser();
+      load();
+      getProfile(otherUserId).then(setOtherUser).catch(() => {});
     }
   }, [user, otherUserId]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  async function loadOtherUser() {
-    try {
-      const data = await getProfile(otherUserId);
-      setOtherUser(data);
-    } catch {}
-  }
+  // Pre-fill the first message with the thing the conversation is about
+  useEffect(() => {
+    if (!loading && about && messages.length === 0 && !draft) {
+      setDraft(`Hi! About your ${KIND_LABEL[kind] ?? "post"} “${about}”: `);
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [loading, about, kind, messages.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function loadMessages() {
+  async function load() {
     try {
       const data = await getMessages(user!.id, otherUserId);
       setMessages(data ?? []);
       await markMessagesRead(user!.id, otherUserId);
+      setLoadError(false);
     } catch {
-      setMessages([]);
+      setLoadError(true);
     }
     setLoading(false);
   }
 
-  async function handleSend() {
-    if (!newMessage.trim() || !user || sending) return;
-    setSending(true);
+  async function send(body: string, tempId?: string) {
+    if (!user) return;
+    const id = tempId ?? `tmp-${Date.now()}`;
+    setMessages((prev) => {
+      const without = prev.filter((m) => m.id !== id);
+      return [...without, { id, body, sender_id: user.id, created_at: new Date().toISOString(), state: "sending" }];
+    });
     try {
-      await sendMessage(user.id, otherUserId, newMessage.trim());
-      setNewMessage("");
-      await loadMessages();
-    } catch {}
-    setSending(false);
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+      const saved = await sendMessage(user.id, otherUserId, body);
+      setMessages((prev) => prev.map((m) => (m.id === id ? { ...saved } : m)));
+    } catch {
+      setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, state: "failed" } : m)));
     }
   }
 
+  function handleSend() {
+    const body = draft.trim();
+    if (!body) return;
+    setDraft("");
+    send(body);
+  }
+
+  const firstName = otherUser?.name?.split(" ")[0];
+
   return (
     <AuthGuard>
-      <div className="flex flex-col h-screen" style={{ background: "var(--bg)" }}>
-        <header
-          className="sticky top-0 z-40 px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-3 flex items-center gap-3"
-          style={{ background: "var(--bg)", boxShadow: "0 1px 8px oklch(0.25 0.01 70 / 0.06)" }}
-        >
-          <button
-            onClick={() => router.push("/messages")}
-            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
-          {otherUser && (
+      <div className="flex flex-col" style={{ background: "var(--bg)", height: "100dvh" }}>
+        <header className="shrink-0 px-4 md:px-6 pt-[calc(env(safe-area-inset-top,0px)_+_12px)] md:pt-5 pb-2.5 flex items-center gap-2" style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
+          <Link href="/messages" className="w-11 h-11 -ml-2 flex items-center justify-center rounded-lg shrink-0" style={{ color: "var(--text)" }} aria-label="Back to messages">
+            <Icon name="chevron-left" size={24} />
+          </Link>
+          {otherUser ? (
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <div
-                className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
-                style={{ background: "var(--accent-light)", color: "var(--navy)" }}
-              >
-                {otherUser.avatar_initials}
-              </div>
+              <Avatar initials={otherUser.avatar_initials} size={40} />
               <div className="min-w-0">
-                <p className="font-semibold text-sm truncate" style={{ color: "var(--text)" }}>
+                <h1 className="text-[17px] font-bold truncate leading-tight" style={{ color: "var(--text)" }}>
                   {otherUser.name}
-                </p>
-                <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                </h1>
+                <p className="text-[13px]" style={{ color: "var(--text-3)" }}>
                   {otherUser.section}
                 </p>
               </div>
             </div>
+          ) : (
+            <div className="flex-1 h-10" />
           )}
         </header>
 
-        <main className="flex-1 overflow-y-auto px-4 py-4">
+        <main className="flex-1 overflow-y-auto px-4 md:px-6 py-4">
+          {about && (
+            <div className="mb-4">
+              <Notice tone="neutral" icon={kind === "listing" ? "tag" : kind === "event" ? "calendar" : "message-circle"}>
+                About {firstName ? `${firstName}'s` : "their"} {KIND_LABEL[kind] ?? "post"}: <strong>{about}</strong>
+              </Notice>
+            </div>
+          )}
           {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading...</p>
-            </div>
+            <Spinner label="Loading conversation" />
+          ) : loadError ? (
+            <Notice tone="danger" icon="alert-triangle" title="Couldn't load messages" action={<Button size="sm" onClick={load}>Try again</Button>} />
           ) : messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <span className="text-3xl mb-2">{"\u{1F44B}"}</span>
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                Say hello to {otherUser?.name?.split(" ")[0] ?? "your neighbor"}!
-              </p>
-            </div>
+            <p className="text-center text-[15px] py-10" style={{ color: "var(--text-2)" }}>
+              Say hello to {firstName ?? "your neighbor"}. Only the two of you can see this conversation.
+            </p>
           ) : (
-            <div className="flex flex-col gap-2">
-              {messages.map((msg: any) => {
-                const isMine = msg.sender_id === user?.id;
+            <ol className="flex flex-col gap-1.5" aria-label="Messages">
+              {messages.map((msg) => {
+                const mine = msg.sender_id === user?.id;
                 return (
-                  <div
-                    key={msg.id}
-                    className={`flex ${isMine ? "justify-end" : "justify-start"}`}
-                  >
-                    <div
-                      className="max-w-[75%] px-4 py-2.5 rounded-2xl"
-                      style={{
-                        background: isMine ? "var(--navy)" : "var(--card)",
-                        color: isMine ? "var(--white)" : "var(--text)",
-                        border: isMine ? "none" : "1px solid var(--border)",
-                        borderBottomRightRadius: isMine ? 4 : 16,
-                        borderBottomLeftRadius: isMine ? 16 : 4,
-                      }}
-                    >
-                      <p className="text-sm leading-relaxed">{msg.body}</p>
-                      <p
-                        className="text-[10px] mt-1"
-                        style={{ opacity: 0.5 }}
+                  <li key={msg.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                    <div className="max-w-[80%]">
+                      <div
+                        className="px-3.5 py-2.5 rounded-2xl"
+                        style={{
+                          background: mine ? "var(--primary)" : "var(--surface)",
+                          color: mine ? "var(--text-on-primary)" : "var(--text)",
+                          border: mine ? "none" : "1px solid var(--border)",
+                          borderBottomRightRadius: mine ? 6 : 16,
+                          borderBottomLeftRadius: mine ? 16 : 6,
+                          opacity: msg.state === "sending" ? 0.7 : 1,
+                        }}
                       >
-                        {formatTime(msg.created_at)}
+                        <p className="text-[16px] leading-relaxed whitespace-pre-line">{msg.body}</p>
+                      </div>
+                      <p className={`text-[12px] mt-1 ${mine ? "text-right" : ""}`} style={{ color: msg.state === "failed" ? "var(--danger)" : "var(--text-3)" }}>
+                        {msg.state === "sending" ? "Sending…" : msg.state === "failed" ? (
+                          <>
+                            Not sent.{" "}
+                            <button type="button" className="font-semibold underline" onClick={() => send(msg.body, msg.id)}>
+                              Retry
+                            </button>
+                          </>
+                        ) : (
+                          new Date(msg.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+                        )}
                       </p>
                     </div>
-                  </div>
+                  </li>
                 );
               })}
-              <div ref={messagesEndRef} />
-            </div>
+              <div ref={endRef} />
+            </ol>
           )}
         </main>
 
-        <div
-          className="px-4 pb-[env(safe-area-inset-bottom,12px)] pt-3"
-          style={{ background: "var(--bg)", boxShadow: "0 -1px 8px oklch(0.25 0.01 70 / 0.06)" }}
+        <form
+          className="shrink-0 px-4 md:px-6 pt-2.5 pb-[calc(env(safe-area-inset-bottom,0px)+66px)] md:pb-4 flex items-end gap-2"
+          style={{ background: "var(--surface)", borderTop: "1px solid var(--border)" }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSend();
+          }}
         >
-          <div className="flex items-end gap-2">
-            <textarea
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a message..."
-              rows={1}
-              className="flex-1 px-4 py-3 rounded-2xl text-sm outline-none resize-none"
-              style={{
-                background: "var(--card)",
-                color: "var(--text)",
-                border: "1px solid var(--border)",
-                maxHeight: 120,
-              }}
-            />
-            <button
-              onClick={handleSend}
-              disabled={!newMessage.trim() || sending}
-              className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 transition-opacity"
-              style={{
-                background: "var(--navy)",
-                opacity: newMessage.trim() && !sending ? 1 : 0.4,
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--white)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13" />
-                <polygon points="22 2 15 22 11 13 2 9 22 2" />
-              </svg>
-            </button>
-          </div>
-        </div>
+          <label htmlFor="message-input" className="sr-only">Message</label>
+          <textarea
+            id="message-input"
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder="Write a message"
+            rows={1}
+            className="flex-1 px-3.5 py-3 rounded-lg text-[16px] outline-none resize-none leading-snug"
+            style={{ background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border-strong)", maxHeight: 120 }}
+          />
+          <Button type="submit" icon="send" aria-label="Send" disabled={!draft.trim()} />
+        </form>
       </div>
     </AuthGuard>
   );
 }
 
-function formatTime(iso: string): string {
-  const date = new Date(iso);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-
-  if (diffMins < 1) return "Now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-
-  const isToday = date.toDateString() === now.toDateString();
-  if (isToday) {
-    return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  }
-
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+export default function ConversationPage() {
+  return (
+    <Suspense fallback={null}>
+      <ConversationPageInner />
+    </Suspense>
+  );
 }

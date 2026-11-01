@@ -1,8 +1,10 @@
 "use client";
 
+import { Suspense } from "react";
+
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   getPendingProfiles,
   approveProfile,
@@ -10,7 +12,24 @@ import {
   getPendingVendors,
   approveVendor,
   denyVendor,
+  publishIrrigationUpdate,
+  notifyAllApproved,
+  getLatestIrrigation,
+  type IrrigationStatus,
+  type IrrigationUpdate,
 } from "@/lib/database";
+import { vendorCategoryLabel } from "@/lib/data";
+import { IRRIGATION_STATUS_LABEL, IRRIGATION_STATUS_HELP, irrigationSummary } from "@/lib/irrigation";
+import PageHeader from "@/components/ui/PageHeader";
+import Button from "@/components/ui/Button";
+import Icon from "@/components/ui/Icon";
+import Avatar from "@/components/ui/Avatar";
+import FilterChips from "@/components/ui/FilterChips";
+import EmptyState from "@/components/ui/EmptyState";
+import { Field, TextInput, TextArea, ChoiceChips } from "@/components/ui/Field";
+import { Panel, Spinner, Notice, StatusBadge, SectionTitle, timeAgo } from "@/components/ui/Primitives";
+
+type Tab = "members" | "vendors" | "irrigation";
 
 interface PendingProfile {
   id: string;
@@ -22,17 +41,17 @@ interface PendingProfile {
   proof_image_url: string | null;
 }
 
-type AdminTab = "members" | "vendors";
-
-export default function AdminPage() {
+function AdminPageInner() {
   const { profile, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [tab, setTab] = useState<AdminTab>("members");
+  const search = useSearchParams();
+  const [tab, setTab] = useState<Tab>((search.get("tab") as Tab) || "members");
   const [pending, setPending] = useState<PendingProfile[]>([]);
   const [pendingVendors, setPendingVendors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actioning, setActioning] = useState<string | null>(null);
   const [viewingProof, setViewingProof] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -40,424 +59,275 @@ export default function AdminPage() {
       router.replace("/");
       return;
     }
-    loadAll();
+    Promise.all([getPendingProfiles(), getPendingVendors()])
+      .then(([m, v]) => {
+        setPending(m ?? []);
+        setPendingVendors(v ?? []);
+      })
+      .catch(() => setError("Couldn't load pending items."))
+      .finally(() => setLoading(false));
   }, [profile, authLoading, router]);
 
-  async function loadAll() {
+  useEffect(() => {
+    if (!viewingProof) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setViewingProof(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [viewingProof]);
+
+  async function act(id: string, fn: () => Promise<void>, remove: () => void) {
+    setActioning(id);
+    setError(null);
     try {
-      const [members, vendors] = await Promise.all([
-        getPendingProfiles(),
-        getPendingVendors(),
-      ]);
-      setPending(members ?? []);
-      setPendingVendors(vendors ?? []);
-    } catch {}
-    setLoading(false);
-  }
-
-  async function handleApprove(id: string) {
-    setActioning(id);
-    await approveProfile(id);
-    setPending((prev) => prev.filter((p) => p.id !== id));
-    setActioning(null);
-  }
-
-  async function handleDeny(id: string) {
-    setActioning(id);
-    await denyProfile(id);
-    setPending((prev) => prev.filter((p) => p.id !== id));
-    setActioning(null);
-  }
-
-  async function handleApproveVendor(id: string, tier: "free" | "featured") {
-    setActioning(id);
-    await approveVendor(id, tier);
-    setPendingVendors((prev) => prev.filter((v) => v.id !== id));
-    setActioning(null);
-  }
-
-  async function handleDenyVendor(id: string) {
-    setActioning(id);
-    await denyVendor(id);
-    setPendingVendors((prev) => prev.filter((v) => v.id !== id));
+      await fn();
+      remove();
+    } catch {
+      setError("That didn't save. Try again.");
+    }
     setActioning(null);
   }
 
   if (authLoading || loading) {
     return (
-      <div
-        className="flex flex-col min-h-screen items-center justify-center"
-        style={{ background: "var(--bg)" }}
-      >
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          Loading...
-        </p>
-      </div>
+      <>
+        <PageHeader title="Board tools" back="/community" />
+        <Spinner />
+      </>
     );
   }
 
   return (
-    <div
-      className="flex flex-col min-h-screen pb-24 md:pb-4"
-      style={{ background: "var(--bg)" }}
-    >
-      <header
-        className="sticky top-0 z-40 px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-3"
-        style={{ background: "var(--bg)" }}
-      >
-        <h1
-          className="font-extrabold tracking-tight text-2xl mb-3"
-          style={{ color: "var(--navy)" }}
-        >
-          Admin
-        </h1>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setTab("members")}
-            className="px-4 py-2 rounded-full text-[13px] font-semibold transition-all"
-            style={{
-              background: tab === "members" ? "var(--navy)" : "var(--card)",
-              color: tab === "members" ? "white" : "var(--text-secondary)",
-              border:
-                tab === "members" ? "none" : "1px solid var(--border)",
-            }}
-          >
-            Members{pending.length > 0 ? ` (${pending.length})` : ""}
-          </button>
-          <button
-            onClick={() => setTab("vendors")}
-            className="px-4 py-2 rounded-full text-[13px] font-semibold transition-all"
-            style={{
-              background: tab === "vendors" ? "var(--navy)" : "var(--card)",
-              color: tab === "vendors" ? "white" : "var(--text-secondary)",
-              border:
-                tab === "vendors" ? "none" : "1px solid var(--border)",
-            }}
-          >
-            Vendors{pendingVendors.length > 0 ? ` (${pendingVendors.length})` : ""}
-          </button>
-        </div>
-      </header>
+    <div className="flex flex-col min-h-screen pb-24 md:pb-8" style={{ background: "var(--bg)" }}>
+      <PageHeader title="Board tools" subtitle="Only board admins can see this" back="/community">
+        <FilterChips
+          label="Board section"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "members", label: `Members${pending.length ? ` (${pending.length})` : ""}` },
+            { value: "vendors", label: `Services${pendingVendors.length ? ` (${pendingVendors.length})` : ""}` },
+            { value: "irrigation", label: "Irrigation" },
+          ]}
+        />
+      </PageHeader>
 
-      <main className="flex-1 px-4">
-        {tab === "members" && <MembersTab pending={pending} actioning={actioning} onApprove={handleApprove} onDeny={handleDeny} onViewProof={setViewingProof} />}
-        {tab === "vendors" && <VendorsTab vendors={pendingVendors} actioning={actioning} onApprove={handleApproveVendor} onDeny={handleDenyVendor} />}
+      <main className="flex-1 px-4 md:px-6">
+        {error && (
+          <div className="mb-3">
+            <Notice tone="danger" icon="alert-triangle">{error}</Notice>
+          </div>
+        )}
+
+        {tab === "members" &&
+          (pending.length === 0 ? (
+            <EmptyState icon="check-circle" title="No pending sign-ups" body="New residents who request access will appear here with their proof of residence." />
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {pending.map((p) => (
+                <li key={p.id} className="list-none">
+                  <Panel padded>
+                    <div className="flex items-center gap-3">
+                      <Avatar initials={p.avatar_initials} size={44} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[16px] font-semibold" style={{ color: "var(--text)" }}>{p.name}</p>
+                        <p className="text-[14px]" style={{ color: "var(--text-2)" }}>{p.section} &middot; {p.address}</p>
+                        <p className="text-[13px]" style={{ color: "var(--text-3)" }}>Requested {timeAgo(p.created_at)}</p>
+                      </div>
+                    </div>
+                    {p.proof_image_url ? (
+                      <button type="button" onClick={() => setViewingProof(p.proof_image_url)} className="w-full mt-3 rounded-lg overflow-hidden text-left" style={{ border: "1px solid var(--border)" }}>
+                        <img src={p.proof_image_url} alt="Proof of residence" className="w-full object-cover" style={{ maxHeight: 160 }} />
+                        <span className="flex items-center gap-1.5 px-3 py-2 text-[14px] font-semibold" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>
+                          <Icon name="eye" size={16} /> View proof of residence
+                        </span>
+                      </button>
+                    ) : (
+                      <div className="mt-3">
+                        <Notice tone="warning" icon="alert-triangle">No proof of residence was uploaded.</Notice>
+                      </div>
+                    )}
+                    <div className="flex gap-2 mt-3">
+                      <Button className="flex-1" onClick={() => act(p.id, () => approveProfile(p.id), () => setPending((l) => l.filter((x) => x.id !== p.id)))} loading={actioning === p.id}>
+                        Approve
+                      </Button>
+                      <Button className="flex-1" variant="danger" onClick={() => act(p.id, () => denyProfile(p.id), () => setPending((l) => l.filter((x) => x.id !== p.id)))} disabled={actioning === p.id}>
+                        Deny
+                      </Button>
+                    </div>
+                  </Panel>
+                </li>
+              ))}
+            </ul>
+          ))}
+
+        {tab === "vendors" &&
+          (pendingVendors.length === 0 ? (
+            <EmptyState icon="check-circle" title="No pending recommendations" body="Services recommended by residents show up here for review." />
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {pendingVendors.map((v) => (
+                <li key={v.id} className="list-none">
+                  <Panel padded>
+                    <p className="text-[17px] font-bold" style={{ color: "var(--text)" }}>{v.business_name}</p>
+                    <p className="text-[14px]" style={{ color: "var(--text-2)" }}>
+                      {vendorCategoryLabel(v.category)}{v.phone ? ` · ${v.phone}` : ""}
+                    </p>
+                    {v.recommender?.name && <p className="text-[13px] mt-0.5" style={{ color: "var(--text-3)" }}>Recommended by {v.recommender.name}</p>}
+                    {v.description && <p className="text-[15px] leading-relaxed mt-2" style={{ color: "var(--text)" }}>{v.description}</p>}
+                    {(v.email || v.website) && (
+                      <p className="text-[14px] mt-2" style={{ color: "var(--text-2)" }}>
+                        {[v.email, v.website].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <Button size="sm" onClick={() => act(v.id, () => approveVendor(v.id, "free"), () => setPendingVendors((l) => l.filter((x) => x.id !== v.id)))} loading={actioning === v.id}>Approve</Button>
+                      <Button size="sm" variant="secondary" icon="star" onClick={() => act(v.id, () => approveVendor(v.id, "featured"), () => setPendingVendors((l) => l.filter((x) => x.id !== v.id)))} disabled={actioning === v.id}>Approve as featured</Button>
+                      <Button size="sm" variant="danger" onClick={() => act(v.id, () => denyVendor(v.id), () => setPendingVendors((l) => l.filter((x) => x.id !== v.id)))} disabled={actioning === v.id}>Deny</Button>
+                    </div>
+                  </Panel>
+                </li>
+              ))}
+            </ul>
+          ))}
+
+        {tab === "irrigation" && <IrrigationForm authorId={profile!.id} authorName={profile!.name} />}
       </main>
 
       {viewingProof && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.9)" }}
-          onClick={() => setViewingProof(null)}
-        >
-          <button
-            className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(255,255,255,0.15)" }}
-            onClick={() => setViewingProof(null)}
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+        <div role="dialog" aria-modal="true" aria-label="Proof of residence" className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.92)" }} onClick={() => setViewingProof(null)}>
+          <button type="button" className="absolute right-4 w-11 h-11 rounded-full flex items-center justify-center" style={{ top: "calc(env(safe-area-inset-top, 0px) + 16px)", background: "rgba(255,255,255,0.15)", color: "white" }} onClick={() => setViewingProof(null)} aria-label="Close" autoFocus>
+            <Icon name="x" size={22} />
           </button>
-          <img
-            src={viewingProof}
-            alt="Proof of residence"
-            className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg"
-            onClick={(e) => e.stopPropagation()}
-          />
+          <img src={viewingProof} alt="Proof of residence" className="max-w-[92vw] max-h-[85vh] object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
     </div>
   );
 }
 
-function MembersTab({
-  pending,
-  actioning,
-  onApprove,
-  onDeny,
-  onViewProof,
-}: {
-  pending: PendingProfile[];
-  actioning: string | null;
-  onApprove: (id: string) => void;
-  onDeny: (id: string) => void;
-  onViewProof: (url: string | null) => void;
-}) {
-  if (pending.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-up">
-        <span className="text-4xl mb-3">&#9989;</span>
-        <p
-          className="font-extrabold tracking-tight text-xl mb-1"
-          style={{ color: "var(--navy)" }}
-        >
-          All caught up
-        </p>
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          No pending sign-up requests right now.
-        </p>
-      </div>
-    );
+function IrrigationForm({ authorId, authorName }: { authorId: string; authorName: string }) {
+  const [status, setStatus] = useState<IrrigationStatus>("estimated");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [note, setNote] = useState("");
+  const [notify, setNotify] = useState(true);
+  const [preview, setPreview] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [latest, setLatest] = useState<IrrigationUpdate | null | undefined>(undefined);
+
+  useEffect(() => {
+    getLatestIrrigation().then(setLatest);
+  }, []);
+
+  const needsDate = status !== "awaiting";
+  const dateError = needsDate && !start ? "Enter a date or the start of the window" : end && start && end < start ? "End must be after start" : undefined;
+  const draft: IrrigationUpdate = { id: "draft", status, window_start: start || null, window_end: end || null, note: note.trim() || null, created_at: new Date().toISOString(), author: { name: authorName } };
+  const summary = irrigationSummary(draft);
+
+  async function publish() {
+    setBusy(true);
+    setResult(null);
+    try {
+      await publishIrrigationUpdate(authorId, status, start || null, end || null, note.trim() || null);
+      let notified = 0;
+      if (notify) notified = await notifyAllApproved("irrigation", `Irrigation update: ${summary}`);
+      setResult({ ok: true, text: notify ? `Published and ${notified} residents notified.` : "Published. Residents will see it under Irrigation and on Home." });
+      setPreview(false);
+      setNote("");
+      getLatestIrrigation().then(setLatest);
+    } catch (e: any) {
+      const msg = String(e?.message ?? "");
+      setResult({
+        ok: false,
+        text: msg.includes("irrigation_updates") || msg.includes("relation") ? "The irrigation table isn't set up yet. Run migrations/2026-11-01-redesign.sql in Supabase, then try again." : "Couldn't publish. Try again.",
+      });
+    }
+    setBusy(false);
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      {pending.map((person, i) => (
-        <div
-          key={person.id}
-          className={`p-4 rounded-2xl animate-fade-up animate-fade-up-delay-${Math.min(i + 1, 5)}`}
-          style={{
-            background: "var(--card)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <div
-              className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold"
-              style={{
-                background: "var(--accent-light)",
-                color: "var(--navy)",
-              }}
-            >
-              {person.avatar_initials}
-            </div>
-            <div className="flex-1">
-              <p
-                className="font-semibold text-sm"
-                style={{ color: "var(--text)" }}
-              >
-                {person.name}
-              </p>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                {person.section} &middot; {person.address}
-              </p>
-              <p
-                className="text-xs mt-0.5"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Requested {new Date(person.created_at).toLocaleDateString()}
-              </p>
-            </div>
-          </div>
-
-          {person.proof_image_url ? (
-            <button
-              onClick={() => onViewProof(person.proof_image_url)}
-              className="w-full mb-3 rounded-xl overflow-hidden active:opacity-80 transition-opacity"
-              style={{ border: "1px solid var(--border)" }}
-            >
-              <img
-                src={person.proof_image_url}
-                alt="Proof of residence"
-                className="w-full object-cover"
-                style={{ maxHeight: 160 }}
-              />
-              <div
-                className="px-3 py-2 flex items-center gap-1.5"
-                style={{ background: "var(--accent-light)" }}
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="var(--accent)"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-                <span
-                  className="text-[11px] font-semibold"
-                  style={{ color: "var(--accent)" }}
-                >
-                  Tap to view proof
-                </span>
-              </div>
-            </button>
-          ) : (
-            <div
-              className="w-full mb-3 px-3 py-2.5 rounded-xl flex items-center gap-2"
-              style={{
-                background: "oklch(0.95 0.03 25)",
-                border: "1px solid oklch(0.90 0.03 25)",
-              }}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="var(--danger)"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
-              <span
-                className="text-[11px] font-semibold"
-                style={{ color: "var(--danger)" }}
-              >
-                No proof uploaded
-              </span>
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            <button
-              onClick={() => onApprove(person.id)}
-              disabled={actioning === person.id}
-              className="flex-1 py-2.5 rounded-full font-bold text-sm"
-              style={{ background: "var(--navy)", color: "var(--white)" }}
-            >
-              {actioning === person.id ? "..." : "Approve"}
-            </button>
-            <button
-              onClick={() => onDeny(person.id)}
-              disabled={actioning === person.id}
-              className="flex-1 py-2.5 rounded-full font-bold text-sm"
-              style={{
-                background: "var(--card)",
-                color: "var(--text-muted)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              Deny
-            </button>
-          </div>
+    <div>
+      {latest === undefined && (
+        <div className="mb-4">
+          <Notice tone="warning" icon="alert-triangle" title="Irrigation updates need a one-time database setup">
+            Run <code>migrations/2026-11-01-redesign.sql</code> in the Supabase SQL editor. Until then, publishing will fail.
+          </Notice>
         </div>
-      ))}
+      )}
+      {latest && (
+        <div className="mb-4">
+          <Notice tone="neutral" icon="droplet" title="Current status">
+            {irrigationSummary(latest)} &middot; posted {timeAgo(latest.created_at)}{latest.author?.name ? ` by ${latest.author.name}` : ""}
+          </Notice>
+        </div>
+      )}
+
+      {result && (
+        <div className="mb-4">
+          <Notice tone={result.ok ? "success" : "danger"} icon={result.ok ? "check-circle" : "alert-triangle"}>{result.text}</Notice>
+        </div>
+      )}
+
+      <SectionTitle>Post an irrigation update</SectionTitle>
+      <Panel padded>
+        <p className="text-[15px] font-semibold mb-1.5" style={{ color: "var(--text)" }}>Status</p>
+        <ChoiceChips
+          label="Status"
+          value={status}
+          onChange={(v) => setStatus(v as IrrigationStatus)}
+          options={(Object.keys(IRRIGATION_STATUS_LABEL) as IrrigationStatus[]).map((s) => ({ value: s, label: IRRIGATION_STATUS_LABEL[s] }))}
+        />
+        <p className="text-[14px] mt-2 mb-4" style={{ color: "var(--text-2)" }}>{IRRIGATION_STATUS_HELP[status]}</p>
+
+        {needsDate && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={status === "estimated" ? "Earliest" : "Date"} required error={dateError}>
+              {(id, by) => <TextInput id={id} describedBy={by} type="date" value={start} onChange={setStart} invalid={!!dateError} />}
+            </Field>
+            <Field label="Latest" optional hint="Leave blank for a single day">
+              {(id, by) => <TextInput id={id} describedBy={by} type="date" value={end} onChange={setEnd} min={start || undefined} />}
+            </Field>
+          </div>
+        )}
+
+        <Field label="Note" optional hint="Anything residents should know: gate times, what changed, who to contact.">
+          {(id, by) => <TextArea id={id} describedBy={by} value={note} onChange={setNote} rows={3} />}
+        </Field>
+
+        <label className="flex items-center gap-3 py-2 cursor-pointer">
+          <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="w-5 h-5 accent-[var(--primary)]" />
+          <span className="text-[15px]" style={{ color: "var(--text)" }}>Notify all residents in the app</span>
+        </label>
+
+        {!preview ? (
+          <div className="mt-3">
+            <Button onClick={() => setPreview(true)} disabled={!!dateError} icon="eye">Preview</Button>
+          </div>
+        ) : (
+          <div className="mt-4 p-4 rounded-lg" style={{ background: "var(--surface-2)" }}>
+            <p className="text-[13px] font-semibold uppercase tracking-wide mb-1" style={{ color: "var(--text-3)" }}>Residents will see</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <StatusBadge tone={status === "confirmed" ? "success" : status === "delayed" ? "danger" : status === "estimated" ? "warning" : "neutral"}>{IRRIGATION_STATUS_LABEL[status]}</StatusBadge>
+              <span className="text-[16px] font-semibold" style={{ color: "var(--text)" }}>{summary}</span>
+            </div>
+            {note.trim() && <p className="text-[15px] mt-2" style={{ color: "var(--text)" }}>{note}</p>}
+            <p className="text-[13px] mt-2" style={{ color: "var(--text-3)" }}>Posted by {authorName} &middot; just now{notify ? " · notification sent to all residents" : ""}</p>
+            <div className="flex gap-2 mt-4">
+              <Button onClick={publish} loading={busy}>Publish</Button>
+              <Button variant="ghost" onClick={() => setPreview(false)} disabled={busy}>Edit</Button>
+            </div>
+          </div>
+        )}
+      </Panel>
     </div>
   );
 }
 
-function VendorsTab({
-  vendors,
-  actioning,
-  onApprove,
-  onDeny,
-}: {
-  vendors: any[];
-  actioning: string | null;
-  onApprove: (id: string, tier: "free" | "featured") => void;
-  onDeny: (id: string) => void;
-}) {
-  if (vendors.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-up">
-        <span className="text-4xl mb-3">&#9989;</span>
-        <p
-          className="font-extrabold tracking-tight text-xl mb-1"
-          style={{ color: "var(--navy)" }}
-        >
-          All caught up
-        </p>
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          No pending vendor recommendations.
-        </p>
-      </div>
-    );
-  }
-
+export default function AdminPage() {
   return (
-    <div className="flex flex-col gap-3">
-      {vendors.map((vendor, i) => (
-        <div
-          key={vendor.id}
-          className={`p-4 rounded-2xl animate-fade-up animate-fade-up-delay-${Math.min(i + 1, 5)}`}
-          style={{
-            background: "var(--card)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          <div className="mb-3">
-            <h3
-              className="font-bold text-[15px]"
-              style={{ color: "var(--navy)" }}
-            >
-              {vendor.business_name}
-            </h3>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              {vendor.category}
-              {vendor.phone ? ` · ${vendor.phone}` : ""}
-            </p>
-            {vendor.recommender?.name && (
-              <p
-                className="text-[11px] mt-0.5"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Recommended by {vendor.recommender.name}
-              </p>
-            )}
-          </div>
-
-          {vendor.description && (
-            <p
-              className="text-[12px] mb-3 leading-relaxed"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              {vendor.description}
-            </p>
-          )}
-
-          {(vendor.email || vendor.website) && (
-            <div
-              className="text-[11px] mb-3 space-y-0.5"
-              style={{ color: "var(--text-muted)" }}
-            >
-              {vendor.email && <p>{vendor.email}</p>}
-              {vendor.website && <p>{vendor.website}</p>}
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            <button
-              onClick={() => onApprove(vendor.id, "free")}
-              disabled={actioning === vendor.id}
-              className="flex-1 py-2.5 rounded-full font-bold text-sm"
-              style={{ background: "var(--navy)", color: "var(--white)" }}
-            >
-              {actioning === vendor.id ? "..." : "Approve"}
-            </button>
-            <button
-              onClick={() => onApprove(vendor.id, "featured")}
-              disabled={actioning === vendor.id}
-              className="flex-1 py-2.5 rounded-full font-bold text-sm"
-              style={{ background: "var(--gold)", color: "white" }}
-            >
-              Featured
-            </button>
-            <button
-              onClick={() => onDeny(vendor.id)}
-              disabled={actioning === vendor.id}
-              className="px-4 py-2.5 rounded-full font-bold text-sm"
-              style={{
-                background: "var(--card)",
-                color: "var(--text-muted)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              Deny
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
+    <Suspense fallback={null}>
+      <AdminPageInner />
+    </Suspense>
   );
 }

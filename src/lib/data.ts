@@ -1,3 +1,5 @@
+import type { IconName } from "@/components/ui/Icon";
+
 export type Category =
   | "produce"
   | "eggs"
@@ -18,7 +20,7 @@ export type ListingCondition = "new" | "like_new" | "good" | "fair";
 
 export interface Post {
   id: string;
-  author: { name: string; avatar: string; address: string };
+  author: { id?: string; name: string; avatar: string; address: string };
   category: Category;
   title: string;
   body: string;
@@ -53,49 +55,102 @@ export interface Event {
   attendees: number;
   author: { name: string; avatar: string };
   image?: string;
-}
-
-export interface Notification {
-  id: string;
-  type: "comment" | "claim" | "event" | "welcome";
-  message: string;
-  timestamp: string;
-  read: boolean;
-  avatar?: string;
+  attendeeInitials?: string[];
 }
 
 export const CATEGORY_LABELS: Record<Category, string> = {
   produce: "Produce",
   eggs: "Eggs",
   flowers: "Flowers",
-  seeds: "Seeds",
-  tools: "Tools",
-  events: "Events",
-  general: "General",
-  lost_found: "Lost & Found",
-  safety: "Safety",
-  free: "Free Stuff",
-  recommendation: "Recommendations",
-  help: "Help Needed",
+  seeds: "Seeds & plants",
+  tools: "Tools to borrow",
+  events: "Event",
+  general: "Update",
+  lost_found: "Lost & found",
+  safety: "Safety alert",
+  free: "Free",
+  recommendation: "Recommendation",
+  help: "Help needed",
 };
 
-export const CATEGORY_EMOJI: Record<Category, string> = {
-  produce: "\u{1F345}",
-  eggs: "\u{1F95A}",
-  flowers: "\u{1F33B}",
-  seeds: "\u{1F331}",
-  tools: "\u{1F527}",
-  events: "\u{1F389}",
-  general: "\u{1F4AC}",
-  lost_found: "\u{1F436}",
-  safety: "\u{1F6A8}",
-  free: "\u{1F381}",
-  recommendation: "\u{1F44D}",
-  help: "\u{1F91D}",
+export const CATEGORY_ICON: Record<Category, IconName> = {
+  produce: "leaf",
+  eggs: "egg",
+  flowers: "flower",
+  seeds: "sprout",
+  tools: "wrench",
+  events: "calendar",
+  general: "message-circle",
+  lost_found: "paw",
+  safety: "alert-triangle",
+  free: "gift",
+  recommendation: "thumbs-up",
+  help: "hand",
 };
+
+/** Categories where someone can take the item, so Available / Claimed applies. */
+export const GIVEAWAY_CATEGORIES: Category[] = ["produce", "eggs", "flowers", "seeds", "free"];
+
+export type PostKind = "conversation" | "giveaway" | "borrow" | "help" | "lost_found" | "alert";
+
+export function postKind(category: Category): PostKind {
+  if (GIVEAWAY_CATEGORIES.includes(category)) return "giveaway";
+  if (category === "tools") return "borrow";
+  if (category === "help") return "help";
+  if (category === "lost_found") return "lost_found";
+  if (category === "safety") return "alert";
+  return "conversation";
+}
+
+/**
+ * The action set for each kind of post. "message" opens a conversation with
+ * the author; "reply" goes to the post's replies.
+ */
+export interface PostAction {
+  label: string;
+  icon: IconName;
+  type: "message" | "reply";
+  primary?: boolean;
+}
+
+export function postActions(category: Category): PostAction[] {
+  switch (postKind(category)) {
+    case "giveaway":
+      return [
+        { label: "I'll take it", icon: "hand", type: "message", primary: true },
+        { label: "Reply", icon: "reply", type: "reply" },
+      ];
+    case "borrow":
+      return [
+        { label: "Ask to borrow", icon: "wrench", type: "message", primary: true },
+        { label: "Reply", icon: "reply", type: "reply" },
+      ];
+    case "help":
+      return [
+        { label: "Offer help", icon: "hand", type: "message", primary: true },
+        { label: "Reply", icon: "reply", type: "reply" },
+      ];
+    case "lost_found":
+      return [
+        { label: "Contact owner", icon: "message-circle", type: "message", primary: true },
+        { label: "Share a sighting", icon: "eye", type: "reply" },
+      ];
+    case "alert":
+      return [{ label: "Add an update", icon: "reply", type: "reply", primary: true }];
+    default:
+      return [{ label: "Reply", icon: "reply", type: "reply", primary: true }];
+  }
+}
+
+/** Plain-language choices for the composer, mapped to categories. */
+export const POST_CATEGORY_GROUPS: { title: string; categories: Category[] }[] = [
+  { title: "Share with neighbors", categories: ["general", "recommendation", "safety", "lost_found"] },
+  { title: "Give away or lend", categories: ["produce", "eggs", "flowers", "seeds", "free", "tools"] },
+  { title: "Ask for help", categories: ["help"] },
+];
 
 export const LISTING_CATEGORY_LABELS: Record<ListingCategory, string> = {
-  home_garden: "Home & Garden",
+  home_garden: "Home & garden",
   furniture: "Furniture",
   tools: "Tools",
   equestrian: "Equestrian",
@@ -104,43 +159,49 @@ export const LISTING_CATEGORY_LABELS: Record<ListingCategory, string> = {
   other: "Other",
 };
 
-export const LISTING_CATEGORY_EMOJI: Record<ListingCategory, string> = {
-  home_garden: "\u{1F3E1}",
-  furniture: "\u{1FA91}",
-  tools: "\u{1F6E0}\u{FE0F}",
-  equestrian: "\u{1F40E}",
-  electronics: "\u{1F4F1}",
-  vehicles: "\u{1F69C}",
-  other: "\u{1F4E6}",
+export const LISTING_CATEGORY_ICON: Record<ListingCategory, IconName> = {
+  home_garden: "home",
+  furniture: "armchair",
+  tools: "wrench",
+  equestrian: "horseshoe",
+  electronics: "smartphone",
+  vehicles: "car",
+  other: "package",
 };
 
 export const LISTING_CONDITION_LABELS: Record<ListingCondition, string> = {
   new: "New",
-  like_new: "Like New",
+  like_new: "Like new",
   good: "Good",
   fair: "Fair",
 };
 
-export interface Message {
-  id: string;
-  senderId: string;
-  recipientId: string;
-  body: string;
-  read: boolean;
-  createdAt: string;
+export const VENDOR_CATEGORIES: { key: string; label: string }[] = [
+  { key: "landscaping", label: "Landscaping" },
+  { key: "plumbing", label: "Plumbing" },
+  { key: "electrical", label: "Electrical" },
+  { key: "hvac", label: "HVAC" },
+  { key: "handyman", label: "Handyman" },
+  { key: "pest_control", label: "Pest control" },
+  { key: "pool", label: "Pool service" },
+  { key: "roofing", label: "Roofing" },
+  { key: "painting", label: "Painting" },
+  { key: "fencing", label: "Fencing" },
+  { key: "tree_service", label: "Tree service" },
+  { key: "cleaning", label: "Cleaning" },
+  { key: "garage_doors", label: "Garage doors" },
+  { key: "other", label: "Other" },
+];
+
+export function vendorCategoryLabel(key: string): string {
+  return VENDOR_CATEGORIES.find((c) => c.key === key)?.label ?? key;
 }
 
-export interface Conversation {
-  otherUser: {
-    id: string;
-    name: string;
-    avatarInitials: string;
-    section: string;
-  };
-  lastMessage: string;
-  lastMessageAt: string;
-  unreadCount: number;
-}
+export const SECTIONS = ["Section 2", "Section 3", "Section 4", "Section 7"];
+
+export const COMMUNITY_NAME = "Sunburst Farms East";
+
+/* ---------- Development preview content only. Never written to the database. ---------- */
 
 export const MOCK_POSTS: Post[] = [
   {
@@ -148,61 +209,50 @@ export const MOCK_POSTS: Post[] = [
     author: { name: "Maria Gonzalez", avatar: "MG", address: "Section 3" },
     category: "eggs",
     title: "Fresh eggs from this morning",
-    body: "Our girls were busy today! Two dozen brown eggs available. Just swing by the front porch, they're in the blue cooler. First come first served.",
-    image: "https://images.unsplash.com/photo-1569288052389-dac9b01c9c05?w=600&h=400&fit=crop",
+    body: "Our girls were busy today. Two dozen brown eggs available. Just swing by the front porch, they're in the blue cooler. First come first served.",
+    image: "https://images.unsplash.com/photo-1569288052389-dac9b01c9c05?w=800&h=500&fit=crop",
     timestamp: "25 min ago",
     likes: 8,
     comments: 3,
   },
   {
     id: "2",
-    author: { name: "Tom & Linda Chen", avatar: "TC", address: "Section 2" },
-    category: "produce",
-    title: "Citrus overflow!",
-    body: "Our orange and grapefruit trees went crazy this season. We have bags and bags ready to go. Come grab as many as you want, we'll leave them by the gate all week.",
-    image: "https://images.unsplash.com/photo-1582979512210-99b6a53386f9?w=600&h=400&fit=crop",
+    author: { name: "Dave Reiter", avatar: "DR", address: "Section 2" },
+    category: "safety",
+    title: "Coyote spotted near bridle path",
+    body: "Heads up, saw a coyote near the south bridle path around 6am this morning. Keep an eye on small pets and chickens today.",
     timestamp: "1 hr ago",
-    likes: 15,
-    comments: 7,
+    likes: 11,
+    comments: 9,
   },
   {
     id: "3",
     author: { name: "Jake Morrison", avatar: "JM", address: "Section 4" },
     category: "tools",
     title: "Post hole digger available to borrow",
-    body: "Just finished my fence project. Happy to lend out the post hole digger this week if anyone needs it. Text me to arrange pickup.",
-    timestamp: "2 hrs ago",
+    body: "Just finished my fence project. Happy to lend out the post hole digger this week if anyone needs it.",
+    timestamp: "2 hr ago",
     likes: 4,
     comments: 2,
   },
   {
     id: "4",
     author: { name: "Sarah Blackwood", avatar: "SB", address: "Section 7" },
-    category: "flowers",
-    title: "Sunflower bouquets ready",
-    body: "Cut a bunch of sunflowers this morning. I have about 8 bouquets wrapped and ready on the porch. They're huge this year!",
-    image: "https://images.unsplash.com/photo-1597848212624-a19eb35e2651?w=600&h=400&fit=crop",
-    timestamp: "3 hrs ago",
+    category: "lost_found",
+    title: "Lost: orange tabby cat, answers to Mango",
+    body: "Mango slipped out last night near 54th St and Sweetwater. Very friendly, no collar. Please message me if you see him.",
+    image: "https://images.unsplash.com/photo-1574158622682-e40e69881006?w=800&h=500&fit=crop",
+    timestamp: "3 hr ago",
     likes: 22,
     comments: 5,
   },
   {
     id: "5",
-    author: { name: "Dave Reiter", avatar: "DR", address: "Section 2" },
-    category: "general",
-    title: "Coyote spotted near bridle path",
-    body: "Heads up, saw a coyote near the south bridle path around 6am this morning. Keep an eye on small pets and chickens today.",
-    timestamp: "4 hrs ago",
-    likes: 11,
-    comments: 9,
-  },
-  {
-    id: "6",
     author: { name: "Patty Nguyen", avatar: "PN", address: "Section 3" },
-    category: "seeds",
-    title: "Heirloom tomato seeds",
-    body: "Saved seeds from our best producers this year. Brandywine, Cherokee Purple, and San Marzano. Small bags on the front table, help yourself.",
-    timestamp: "5 hrs ago",
+    category: "recommendation",
+    title: "Great experience with Desert Sun Landscaping",
+    body: "They redid our front yard irrigation lines last week. On time, fair price, and they cleaned up after themselves. Happy to share their number.",
+    timestamp: "5 hr ago",
     likes: 13,
     comments: 4,
   },
@@ -212,82 +262,31 @@ export const MOCK_EVENTS: Event[] = [
   {
     id: "e1",
     title: "Community Potluck at Sereno Park",
-    date: "2026-05-24",
+    date: "2026-11-15",
     time: "5:00 PM",
     location: "Sereno Park Pavilion",
-    description: "Bring a dish to share! Burgers and drinks provided by the community board. Kids welcome, bring lawn chairs.",
+    description: "Bring a dish to share. Burgers and drinks provided by the community board. Kids welcome, bring lawn chairs.",
     attendees: 34,
     author: { name: "SBFE Board", avatar: "SB" },
+    image: "https://images.unsplash.com/photo-1529543544282-ea669407fca3?w=1200&h=700&fit=crop",
+    attendeeInitials: ["MG", "DR", "JM", "SB", "PN"],
   },
   {
     id: "e2",
     title: "Saturday Morning Trail Ride",
-    date: "2026-05-31",
+    date: "2026-11-22",
     time: "7:00 AM",
     location: "Horse Arena on 56th",
     description: "Casual group ride along the bridle paths. All experience levels welcome. Meet at the arena by 6:45.",
     attendees: 12,
     author: { name: "Jake Morrison", avatar: "JM" },
-  },
-  {
-    id: "e3",
-    title: "Irrigation Schedule Meeting",
-    date: "2026-06-03",
-    time: "6:30 PM",
-    location: "Community Center",
-    description: "Summer irrigation schedule discussion and updates from the water committee.",
-    attendees: 18,
-    author: { name: "SBFE Board", avatar: "SB" },
-  },
-  {
-    id: "e4",
-    title: "Neighborhood Seed Swap",
-    date: "2026-06-07",
-    time: "9:00 AM",
-    location: "Sonrisa Park",
-    description: "Bring your saved seeds, cuttings, and starter plants. Trade with neighbors for next season's garden.",
-    attendees: 21,
-    author: { name: "Patty Nguyen", avatar: "PN" },
+    attendeeInitials: ["JM", "SB", "PN"],
   },
 ];
 
-export const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: "n1",
-    type: "claim",
-    message: "Tom Chen claimed your sunflower bouquet!",
-    timestamp: "10 min ago",
-    read: false,
-    avatar: "TC",
-  },
-  {
-    id: "n2",
-    type: "comment",
-    message: "Maria G. commented on your post: \"We'd love some grapefruit!\"",
-    timestamp: "30 min ago",
-    read: false,
-    avatar: "MG",
-  },
-  {
-    id: "n3",
-    type: "event",
-    message: "Community Potluck is this Saturday. 34 neighbors going!",
-    timestamp: "1 hr ago",
-    read: false,
-  },
-  {
-    id: "n4",
-    type: "comment",
-    message: "Jake M. replied: \"I can drop off the digger tomorrow morning.\"",
-    timestamp: "2 hrs ago",
-    read: true,
-    avatar: "JM",
-  },
-  {
-    id: "n5",
-    type: "welcome",
-    message: "Welcome to Sunburst Farms! Start by sharing something with your neighbors.",
-    timestamp: "1 day ago",
-    read: true,
-  },
+export const MOCK_LISTINGS = [
+  { id: "l1", title: "Lawn mower, runs great", price: 75, is_free: false, status: "available", category: "home_garden", image_url: "https://images.unsplash.com/photo-1590674899484-d5640e854abe?w=800&h=800&fit=crop", seller: { name: "P.A.", section: "Section 3" } },
+  { id: "l2", title: "Raised garden beds (set of 2)", price: 150, is_free: false, status: "available", category: "home_garden", image_url: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800&h=800&fit=crop", seller: { name: "Anne Fischer", section: "Section 5" } },
+  { id: "l3", title: "Oak dining chairs", price: null, is_free: true, status: "pending", category: "furniture", image_url: "https://images.unsplash.com/photo-1503602642458-232111445657?w=800&h=800&fit=crop", seller: { name: "Tom Chen", section: "Section 2" } },
+  { id: "l4", title: "Western saddle, 16 inch", price: 400, is_free: false, status: "sold", category: "equestrian", image_url: null, seller: { name: "Jake Morrison", section: "Section 4" } },
 ];

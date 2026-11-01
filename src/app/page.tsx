@@ -2,56 +2,52 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { Category, CATEGORY_LABELS, CATEGORY_EMOJI } from "@/lib/data";
-import { getPosts, toggleLike, getEvents } from "@/lib/database";
+import { type Category, COMMUNITY_NAME } from "@/lib/data";
+import { getPosts, toggleLike, getEvents, getLatestIrrigation, type IrrigationUpdate } from "@/lib/database";
 import { useAuth } from "@/lib/auth-context";
 import PostCard from "@/components/PostCard";
 import AuthGuard from "@/components/AuthGuard";
+import Icon from "@/components/ui/Icon";
+import Avatar from "@/components/ui/Avatar";
+import Button from "@/components/ui/Button";
+import FilterChips from "@/components/ui/FilterChips";
+import EmptyState from "@/components/ui/EmptyState";
+import { Panel, Spinner, timeAgo, StatusBadge } from "@/components/ui/Primitives";
+import { useUnreadCounts } from "@/components/AppShell";
+import DateTile from "@/components/ui/DateTile";
+import { irrigationIsCurrent, irrigationSummary } from "@/lib/irrigation";
 
-const SHORTCUTS = [
-  { label: "News", href: "/news", emoji: "\u{1F4F0}" },
-  { label: "Events", href: "/events", emoji: "\u{1F389}" },
-  { label: "Vendors", href: "/vendors", emoji: "\u{2B50}" },
-  { label: "Real Estate", href: "/realestate", emoji: "\u{1F3E0}" },
-  { label: "Dues", href: "/dues", emoji: "\u{1F4B3}" },
-  { label: "Info", href: "/info", emoji: "\u{2139}\u{FE0F}" },
-];
+type Filter = "all" | "alerts" | "giveaways" | "help" | "recommendations" | "updates";
 
-const FILTER_CATEGORIES: (Category | "all")[] = [
-  "all",
-  "safety",
-  "lost_found",
-  "free",
-  "recommendation",
-  "help",
-  "produce",
-  "eggs",
-  "flowers",
-  "seeds",
-  "tools",
-  "general",
+const FILTERS: { value: Filter; label: string; categories?: Category[] }[] = [
+  { value: "all", label: "All" },
+  { value: "alerts", label: "Alerts & lost pets", categories: ["safety", "lost_found"] },
+  { value: "giveaways", label: "Free & to borrow", categories: ["produce", "eggs", "flowers", "seeds", "free", "tools"] },
+  { value: "help", label: "Help needed", categories: ["help"] },
+  { value: "recommendations", label: "Recommendations", categories: ["recommendation"] },
+  { value: "updates", label: "Updates", categories: ["general", "events"] },
 ];
 
 export default function Home() {
-  const [activeFilter, setActiveFilter] = useState<Category | "all">("all");
+  const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [posts, setPosts] = useState<any[]>([]);
   const [events, setEvents] = useState<any[]>([]);
+  const [irrigation, setIrrigation] = useState<IrrigationUpdate | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const { user, profile } = useAuth();
+  const unread = useUnreadCounts();
 
   useEffect(() => {
     loadPosts();
-  }, [activeFilter]);
-
-  useEffect(() => {
-    loadEvents();
+    getEvents().then((d) => setEvents(d ?? [])).catch(() => setEvents([]));
+    getLatestIrrigation().then(setIrrigation).catch(() => setIrrigation(undefined));
   }, []);
 
   async function loadPosts() {
-    setLoading(true);
     try {
-      const data = await getPosts(activeFilter === "all" ? undefined : activeFilter);
+      const data = await getPosts();
       setPosts(data ?? []);
     } catch {
       setPosts([]);
@@ -59,266 +55,214 @@ export default function Home() {
     setLoading(false);
   }
 
-  async function loadEvents() {
-    try {
-      const data = await getEvents();
-      setEvents(data ?? []);
-    } catch {
-      setEvents([]);
-    }
-  }
-
   async function handleLike(postId: string) {
     if (!user) return;
+    // Optimistic update, then reconcile
+    setPosts((prev) =>
+      prev.map((p) => {
+        if (p.id !== postId) return p;
+        const liked = p.likes?.some((l: any) => l.user_id === user.id);
+        return { ...p, likes: liked ? p.likes.filter((l: any) => l.user_id !== user.id) : [...(p.likes ?? []), { user_id: user.id }] };
+      }),
+    );
     await toggleLike(postId, user.id);
-    loadPosts();
   }
 
   const visiblePosts = useMemo(() => {
+    const cats = FILTERS.find((f) => f.value === filter)?.categories;
+    let list = cats ? posts.filter((p) => cats.includes(p.category)) : posts;
     const q = query.trim().toLowerCase();
-    if (!q) return posts;
-    return posts.filter((p: any) =>
-      [p.title, p.body, p.author?.name, p.author?.section]
-        .filter(Boolean)
-        .some((field: string) => field.toLowerCase().includes(q)),
-    );
-  }, [posts, query]);
+    if (q) {
+      list = list.filter((p) =>
+        [p.title, p.body, p.author?.name, p.author?.section].filter(Boolean).some((f: string) => f.toLowerCase().includes(q)),
+      );
+    }
+    return list;
+  }, [posts, filter, query]);
 
-  const firstName = profile?.name?.split(" ")[0] ?? "neighbor";
-  const initials = profile?.avatar_initials ?? "?";
   const nextEvent = events[0];
+  const showIrrigation = irrigation && irrigationIsCurrent(irrigation);
 
   return (
     <AuthGuard>
-      <div className="flex flex-col min-h-screen pb-24 md:pb-6" style={{ background: "var(--bg)" }}>
-        {/* Sticky header */}
+      <div className="flex flex-col min-h-screen pb-24 md:pb-8" style={{ background: "var(--bg)" }}>
+        {/* Compact community header */}
         <header
-          className="sticky top-0 z-40 px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-2.5"
+          className="sticky top-0 z-40 px-4 md:px-6 pt-[calc(env(safe-area-inset-top,0px)_+_18px)] md:pt-6 pb-2"
           style={{ background: "var(--bg)" }}
         >
-          <div className="flex items-center justify-between pt-2 mb-3">
-            <div className="md:hidden">
-              <h1 className="text-[19px] font-extrabold tracking-tight leading-none" style={{ color: "var(--navy)" }}>
-                Sunburst Farms
+          <div className="flex items-center gap-2 min-h-[44px]">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-[18px] md:text-[20px] font-bold tracking-tight leading-tight" style={{ color: "var(--text)" }}>
+                {COMMUNITY_NAME}
               </h1>
-              <p className="text-[11px] font-medium mt-0.5" style={{ color: "var(--text-muted)" }}>
-                East &middot; Phoenix, AZ
+              <p className="text-[13px] leading-none mt-0.5 md:hidden" style={{ color: "var(--text-3)" }}>
+                Phoenix, AZ
               </p>
             </div>
-            <h1 className="hidden md:block text-[20px] font-extrabold tracking-tight" style={{ color: "var(--navy)" }}>
-              Neighborhood Feed
-            </h1>
+            <button
+              type="button"
+              onClick={() => setSearchOpen((v) => !v)}
+              aria-expanded={searchOpen}
+              aria-label="Search posts"
+              className="w-10 h-11 flex items-center justify-center rounded-lg"
+              style={{ color: searchOpen ? "var(--primary)" : "var(--text-2)" }}
+            >
+              <Icon name="search" size={22} strokeWidth={searchOpen ? 2.2 : 1.75} />
+            </button>
+            <Link
+              href="/notifications"
+              className="relative w-10 h-11 flex items-center justify-center rounded-lg md:hidden"
+              style={{ color: "var(--text-2)" }}
+              aria-label={unread.notifications ? `Notifications, ${unread.notifications} unread` : "Notifications"}
+            >
+              <Icon name="bell" size={22} />
+              {unread.notifications > 0 && (
+                <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full" style={{ background: "var(--danger)", boxShadow: "0 0 0 2px var(--bg)" }} aria-hidden />
+              )}
+            </Link>
+            <Link href="/profile" className="md:hidden w-10 h-11 flex items-center justify-center rounded-lg" aria-label="Your account">
+              <Avatar initials={profile?.avatar_initials ?? "?"} size={34} tone="solid" />
+            </Link>
+          </div>
 
-            <div className="flex items-center gap-2">
-              <Link
-                href="/notifications"
-                className="w-10 h-10 rounded-full flex items-center justify-center"
-                style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                aria-label="Notifications"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                </svg>
-              </Link>
-              <Link
-                href="/profile"
-                className="md:hidden w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold"
-                style={{ background: "var(--navy)", color: "var(--white)" }}
-              >
-                {initials}
-              </Link>
+          {searchOpen && (
+            <div className="relative mt-2">
+              <Icon name="search" size={18} color="var(--text-3)" className="absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search posts and neighbors"
+                autoFocus
+                aria-label="Search posts and neighbors"
+                className="w-full h-11 pl-10 pr-10 rounded-lg text-[16px] outline-none"
+                style={{ background: "var(--surface)", border: "1px solid var(--border-strong)", color: "var(--text)" }}
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-md"
+                  aria-label="Clear search"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  <Icon name="x" size={18} />
+                </button>
+              )}
             </div>
-          </div>
-
-          {/* Search */}
-          <div
-            className="flex items-center gap-2.5 px-4 rounded-full"
-            style={{ background: "var(--card)", border: "1px solid var(--border)", height: 42 }}
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search posts and neighbors"
-              className="flex-1 bg-transparent outline-none text-[14px] min-w-0"
-              style={{ color: "var(--text)" }}
-            />
-            {query && (
-              <button onClick={() => setQuery("")} className="shrink-0 active:opacity-60" aria-label="Clear search">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.2" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            )}
-          </div>
+          )}
         </header>
 
-        <main className="flex-1 px-4">
-          {/* Compose box */}
-          <Link
-            href="/new"
-            className="flex items-center gap-3 p-3 mb-3 rounded-2xl active:scale-[0.99] transition-transform animate-fade-up"
-            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-          >
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0"
-              style={{ background: "var(--accent-light)", color: "var(--navy)" }}
-            >
-              {initials}
-            </div>
-            <span className="flex-1 text-[14px]" style={{ color: "var(--text-muted)" }}>
-              What&rsquo;s happening, {firstName}?
-            </span>
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-              style={{ background: "var(--accent-light)" }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <polyline points="21 15 16 10 5 21" />
-              </svg>
-            </div>
-          </Link>
-
-          {/* Shortcuts */}
-          <div className="flex gap-2 overflow-x-auto hide-scrollbar -mx-4 px-4 pb-3 animate-fade-up animate-fade-up-delay-1">
-            {SHORTCUTS.map((s) => (
-              <Link
-                key={s.href}
-                href={s.href}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full shrink-0 active:scale-95 transition-transform"
-                style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-              >
-                <span className="text-[14px] leading-none">{s.emoji}</span>
-                <span className="text-[12px] font-semibold" style={{ color: "var(--text-secondary)" }}>
-                  {s.label}
-                </span>
-              </Link>
-            ))}
-          </div>
-
-          {/* Next event */}
-          {nextEvent && !query && (
-            <Link
-              href={`/events/${nextEvent.id}`}
-              className="flex items-center gap-3.5 p-3.5 mb-3 rounded-2xl active:scale-[0.99] transition-transform animate-fade-up animate-fade-up-delay-2"
-              style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-            >
-              {(() => {
-                const date = new Date(nextEvent.event_date + "T00:00:00");
-                const month = date.toLocaleString("en-US", { month: "short" }).toUpperCase();
-                const day = date.getDate();
-                return (
-                  <div
-                    className="w-12 h-12 rounded-xl flex flex-col items-center justify-center shrink-0"
-                    style={{ background: "var(--cat-events-bg)" }}
-                  >
-                    <span className="text-[9px] font-bold uppercase leading-none" style={{ color: "var(--cat-events-text)" }}>
-                      {month}
+        <main className="flex-1 px-4 md:px-6">
+          {/* One timely module: irrigation when there is a current status, otherwise the next event */}
+          {!query && showIrrigation && irrigation && (
+            <Link href="/irrigation" className="block mb-3">
+              <Panel>
+                <div className="flex items-center gap-3.5 px-4 py-3.5">
+                  <span className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--info-soft)", color: "var(--info)" }}>
+                    <Icon name="droplet" size={22} />
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[13px] font-semibold uppercase tracking-wide" style={{ color: "var(--info)" }}>
+                        Irrigation
+                      </span>
+                      <StatusBadge tone={irrigation.status === "confirmed" ? "success" : irrigation.status === "delayed" ? "danger" : "warning"}>
+                        {irrigation.status === "awaiting" ? "Awaiting info" : irrigation.status === "estimated" ? "Estimate" : irrigation.status === "confirmed" ? "Confirmed" : "Delayed"}
+                      </StatusBadge>
                     </span>
-                    <span className="text-[17px] font-extrabold leading-none mt-0.5" style={{ color: "var(--cat-events-text)" }}>
-                      {day}
+                    <span className="block text-[16px] font-semibold leading-snug mt-0.5 truncate" style={{ color: "var(--text)" }}>
+                      {irrigationSummary(irrigation)}
                     </span>
-                  </div>
-                );
-              })()}
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--accent)" }}>
-                  Next event
-                </p>
-                <p className="text-[14px] font-bold truncate leading-tight" style={{ color: "var(--text)" }}>
-                  {nextEvent.title}
-                </p>
-                <p className="text-[12px] truncate mt-0.5" style={{ color: "var(--text-muted)" }}>
-                  {nextEvent.location}
-                  {nextEvent.rsvps?.length ? ` · ${nextEvent.rsvps.length} going` : ""}
-                </p>
-              </div>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
+                    <span className="block text-[13px] mt-0.5" style={{ color: "var(--text-3)" }}>
+                      {irrigation.author?.name ? `${irrigation.author.name} · ` : ""}updated {timeAgo(irrigation.created_at)}
+                    </span>
+                  </span>
+                  <Icon name="chevron-right" size={18} color="var(--text-3)" />
+                </div>
+              </Panel>
+            </Link>
+          )}
+          {!query && !showIrrigation && nextEvent && (
+            <Link href={`/events/${nextEvent.id}`} className="block mb-3">
+              <Panel>
+                <div className="flex items-center gap-3.5 px-4 py-3.5">
+                  <DateTile date={nextEvent.event_date} />
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[13px] font-semibold uppercase tracking-wide" style={{ color: "var(--primary)" }}>
+                      Next event
+                    </span>
+                    <span className="block text-[16px] font-semibold leading-snug truncate" style={{ color: "var(--text)" }}>
+                      {nextEvent.title}
+                    </span>
+                    <span className="block text-[14px] mt-0.5 truncate" style={{ color: "var(--text-2)" }}>
+                      {nextEvent.location}
+                      {nextEvent.rsvps?.length ? ` · ${nextEvent.rsvps.length} going` : ""}
+                    </span>
+                  </span>
+                  <Icon name="chevron-right" size={18} color="var(--text-3)" />
+                </div>
+              </Panel>
             </Link>
           )}
 
-          {/* Category filters */}
-          <div className="flex gap-2 overflow-x-auto hide-scrollbar -mx-4 px-4 pb-3 animate-fade-up animate-fade-up-delay-2">
-            {FILTER_CATEGORIES.map((cat) => {
-              const active = activeFilter === cat;
-              return (
-                <button
-                  key={cat}
-                  onClick={() => setActiveFilter(cat)}
-                  className="shrink-0 px-3.5 py-1.5 rounded-full text-[12px] transition-all active:scale-95"
-                  style={{
-                    background: active ? "var(--navy)" : "var(--card)",
-                    color: active ? "var(--white)" : "var(--text-secondary)",
-                    border: active ? "1px solid var(--navy)" : "1px solid var(--border)",
-                    fontWeight: active ? 700 : 600,
-                  }}
-                >
-                  {cat === "all" ? "All" : `${CATEGORY_EMOJI[cat]} ${CATEGORY_LABELS[cat]}`}
-                </button>
-              );
-            })}
+          {/* Posting action */}
+          {!query && (
+            <div className="mb-3">
+              <Button href="/post" variant="secondary" full icon="edit">
+                Share with neighbors
+              </Button>
+            </div>
+          )}
+
+          {/* Filters */}
+          <div className="mb-3">
+            <FilterChips options={FILTERS.map(({ value, label }) => ({ value, label }))} value={filter} onChange={setFilter} label="Filter posts" />
           </div>
 
           {/* Feed */}
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <div
-                className="w-7 h-7 rounded-full animate-spin"
-                style={{
-                  border: "2.5px solid var(--border)",
-                  borderTopColor: "var(--accent)",
-                }}
-              />
-            </div>
+            <Spinner label="Loading posts" />
           ) : visiblePosts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <span className="text-4xl mb-3">
-                {query ? "\u{1F50D}" : activeFilter !== "all" ? CATEGORY_EMOJI[activeFilter] : "\u{1F331}"}
-              </span>
-              <p className="text-[15px] font-bold mb-1" style={{ color: "var(--navy)" }}>
-                {query ? "No matches" : "Nothing here yet"}
-              </p>
-              <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>
-                {query ? `Nothing found for "${query}"` : "Be the first to share something"}
-              </p>
-            </div>
+            <EmptyState
+              icon={query ? "search" : "message-circle"}
+              title={query ? "No matches" : "Nothing here yet"}
+              body={query ? `Nothing found for “${query}”.` : filter === "all" ? "Be the first to share something with your neighbors." : "No posts in this group right now."}
+              action={!query && filter === "all" ? <Button href="/post" icon="edit">Share with neighbors</Button> : undefined}
+            />
           ) : (
-            <div className="flex flex-col gap-3">
-              {visiblePosts.map((post: any, i: number) => (
-                <PostCard
-                  key={post.id}
-                  post={{
-                    id: post.id,
-                    author: {
-                      name: post.author?.name ?? "Neighbor",
-                      avatar: post.author?.avatar_initials ?? "??",
-                      address: post.author?.section ?? "",
-                    },
-                    category: post.category,
-                    title: post.title,
-                    body: post.body,
-                    image: post.image_url,
-                    timestamp: formatTime(post.created_at),
-                    likes: post.likes?.length ?? 0,
-                    comments: post.comments?.length ?? 0,
-                    claimed: !!post.claimed_by,
-                  }}
-                  index={i}
-                  onLike={() => handleLike(post.id)}
-                  isLiked={post.likes?.some((l: any) => l.user_id === user?.id) ?? false}
-                />
-              ))}
-            </div>
+            <Panel>
+              <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+                {visiblePosts.map((post: any, i: number) => (
+                  <div key={post.id} style={{ borderColor: "var(--border)" }}>
+                    <PostCard
+                      post={{
+                        id: post.id,
+                        author: {
+                          id: post.author?.id,
+                          name: post.author?.name ?? "Neighbor",
+                          avatar: post.author?.avatar_initials ?? "??",
+                          address: post.author?.section ?? "",
+                        },
+                        category: post.category,
+                        title: post.title,
+                        body: post.body,
+                        image: post.image_url,
+                        timestamp: timeAgo(post.created_at),
+                        likes: post.likes?.length ?? 0,
+                        comments: post.comments?.length ?? 0,
+                        claimed: !!post.claimed_by,
+                      }}
+                      index={i}
+                      onLike={() => handleLike(post.id)}
+                      isLiked={post.likes?.some((l: any) => l.user_id === user?.id) ?? false}
+                      isOwn={post.author_id === user?.id}
+                    />
+                  </div>
+                ))}
+              </div>
+            </Panel>
           )}
         </main>
       </div>
@@ -326,14 +270,3 @@ export default function Home() {
   );
 }
 
-function formatTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}

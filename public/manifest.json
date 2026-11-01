@@ -1,11 +1,11 @@
 {
   "name": "Sunburst Farms East",
   "short_name": "Sunburst",
-  "description": "Your neighborhood, connected.",
+  "description": "The neighborhood app for Sunburst Farms East.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#2a3d2e",
-  "theme_color": "#2a3d2e",
+  "background_color": "#f8f7f5",
+  "theme_color": "#ffffff",
   "orientation": "portrait",
   "icons": [
     {

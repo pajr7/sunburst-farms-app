@@ -1,8 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import AuthGuard from "@/components/AuthGuard";
+import PageHeader from "@/components/ui/PageHeader";
+import Button from "@/components/ui/Button";
+import Icon from "@/components/ui/Icon";
+import { Panel, Spinner, Notice, timeAgo } from "@/components/ui/Primitives";
 
 export default function InfoDetailPage() {
   const { pageId } = useParams<{ pageId: string }>();
@@ -10,75 +14,62 @@ export default function InfoDetailPage() {
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const router = useRouter();
+  const [checkedAt, setCheckedAt] = useState<string | null>(null);
+  const sourceUrl = `https://sbfehome.com/?page_id=${pageId}`;
 
   useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch(`/api/info?page=${pageId}`);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        setTitle(data.title);
-        setContent(data.content);
-      } catch {
-        setError(true);
-      }
-      setLoading(false);
-    }
     load();
   }, [pageId]);
 
+  async function load() {
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await fetch(`/api/info?page=${pageId}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setTitle(data.title);
+      setContent(data.content);
+      setCheckedAt(new Date().toISOString());
+    } catch {
+      setError(true);
+    }
+    setLoading(false);
+  }
+
   return (
     <AuthGuard>
-      <div className="flex flex-col min-h-screen pb-24 md:pb-4" style={{ background: "var(--bg)" }}>
-        <header className="px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-2">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-1.5 text-sm font-medium mb-3 pt-2"
-            style={{ color: "var(--accent)" }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-            Back
-          </button>
-        </header>
+      <div className="flex flex-col min-h-screen pb-24 md:pb-8" style={{ background: "var(--bg)" }}>
+        <PageHeader title={loading ? "Association" : title || "Association"} eyebrow="From sbfehome.com" back="/info" />
 
-        <main className="flex-1 px-4">
-          {loading && (
-            <div className="flex items-center justify-center py-20">
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading...</p>
-            </div>
-          )}
-
-          {error && (
-            <div className="text-center py-20">
-              <p className="text-lg font-bold mb-1" style={{ color: "var(--text)" }}>Couldn't load this page</p>
-              <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>Check your connection and try again.</p>
-              <button
-                onClick={() => window.location.reload()}
-                className="px-5 py-2.5 rounded-full text-sm font-semibold"
-                style={{ background: "var(--navy)", color: "var(--white)" }}
-              >
-                Retry
-              </button>
-            </div>
-          )}
-
-          {!loading && !error && (
-            <div className="animate-fade-up">
-              <h1
-                className="text-xl font-extrabold tracking-tight mb-4"
-                style={{ color: "var(--navy)" }}
-              >
-                {title}
-              </h1>
-              <div
-                className="rounded-2xl p-5 mb-5 info-content"
-                style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                dangerouslySetInnerHTML={{ __html: content }}
-              />
-            </div>
+        <main className="flex-1 px-4 md:px-6">
+          {loading ? (
+            <Spinner label="Loading page" />
+          ) : error ? (
+            <Notice
+              tone="warning"
+              icon="alert-triangle"
+              title="Couldn't load this page"
+              action={
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={load}>Try again</Button>
+                  <Button size="sm" variant="secondary" href={sourceUrl} iconRight="external-link">Open the website</Button>
+                </div>
+              }
+            >
+              Check your connection, or open it on the association website.
+            </Notice>
+          ) : (
+            <Panel padded>
+              <div className="info-content" dangerouslySetInnerHTML={{ __html: content }} />
+              <p className="flex items-center gap-1.5 text-[13px] mt-5 pt-4" style={{ color: "var(--text-3)", borderTop: "1px solid var(--border)" }}>
+                <Icon name="globe" size={14} />
+                Official content from sbfehome.com{checkedAt ? `, checked ${timeAgo(checkedAt)}` : ""}.
+                <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="font-semibold ml-1" style={{ color: "var(--primary)" }}>
+                  Open original
+                </a>
+              </p>
+            </Panel>
           )}
         </main>
       </div>

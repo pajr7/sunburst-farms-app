@@ -1,166 +1,168 @@
 "use client";
 
 import { useState } from "react";
-import { Post, CATEGORY_LABELS, CATEGORY_EMOJI } from "@/lib/data";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { type Post, CATEGORY_LABELS, CATEGORY_ICON, postActions, postKind } from "@/lib/data";
+import Icon from "./ui/Icon";
+import Avatar from "./ui/Avatar";
+import Button from "./ui/Button";
+import { StatusBadge, type Tone } from "./ui/Primitives";
 
 interface PostCardProps {
   post: Post;
   index?: number;
   onLike?: () => void;
   isLiked?: boolean;
+  isOwn?: boolean;
+  /** Render without the clamp and with the full image: used on the detail page */
+  expanded?: boolean;
 }
 
-export default function PostCard({ post, index = 0, onLike, isLiked = false }: PostCardProps) {
-  const [expanded, setExpanded] = useState(false);
-  const isLong = post.body.length > 180;
-  const body = expanded || !isLong ? post.body : post.body.slice(0, 180).trimEnd() + "…";
+export function kindTone(category: Post["category"]): Tone {
+  switch (postKind(category)) {
+    case "alert":
+      return "danger";
+    case "lost_found":
+      return "warning";
+    case "help":
+      return "info";
+    case "giveaway":
+    case "borrow":
+      return "success";
+    default:
+      return "neutral";
+  }
+}
+
+const TONE_COLOR: Record<Tone, string> = {
+  neutral: "var(--text-3)",
+  success: "var(--primary-soft-text)",
+  warning: "var(--warning)",
+  danger: "var(--danger)",
+  info: "var(--info)",
+};
+
+export default function PostCard({ post, index = 0, onLike, isLiked = false, isOwn = false, expanded = false }: PostCardProps) {
+  const [open, setOpen] = useState(expanded);
+  const router = useRouter();
+  const isLong = post.body.length > 220;
+  const body = open || !isLong ? post.body : post.body.slice(0, 220).trimEnd() + "…";
+  const kind = postKind(post.category);
+  const tone = kindTone(post.category);
+  const actions = postActions(post.category);
+  const detailHref = `/posts/${post.id}`;
+  const canMessage = !isOwn && !!post.author.id;
+
+  function go(type: "message" | "reply") {
+    if (type === "reply") {
+      router.push(`${detailHref}#reply`);
+      return;
+    }
+    if (!post.author.id) return;
+    const about = encodeURIComponent(post.title);
+    router.push(`/messages/${post.author.id}?about=${about}&kind=post`);
+  }
 
   return (
-    <article
-      className={`animate-fade-up animate-fade-up-delay-${Math.min(index + 1, 5)}`}
-      style={{
-        background: "var(--card)",
-        borderRadius: 14,
-        border: "1px solid var(--border)",
-      }}
-    >
+    <article className="px-4 pt-4 pb-3" aria-labelledby={`post-${post.id}-title`} data-index={index}>
       {/* Author row */}
-      <div className="flex items-center gap-3 px-4 pt-4 pb-2.5">
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0"
-          style={{ background: "var(--accent-light)", color: "var(--navy)" }}
-        >
-          {post.author.avatar}
-        </div>
+      <div className="flex items-start gap-3">
+        <Avatar initials={post.author.avatar} size={40} />
         <div className="flex-1 min-w-0">
-          <p className="text-[14px] font-bold leading-tight truncate" style={{ color: "var(--text)" }}>
-            {post.author.name}
-          </p>
-          <p className="text-[12px] leading-tight mt-0.5" style={{ color: "var(--text-muted)" }}>
-            {post.author.address}
-            {post.author.address ? " · " : ""}
-            {post.timestamp}
-          </p>
-        </div>
-        <span
-          className="shrink-0 px-2.5 py-1 rounded-full text-[11px] font-semibold"
-          style={{
-            background: `var(--cat-${post.category}-bg)`,
-            color: `var(--cat-${post.category}-text)`,
-          }}
-        >
-          {CATEGORY_EMOJI[post.category]} {CATEGORY_LABELS[post.category]}
-        </span>
-      </div>
-
-      {/* Body */}
-      <div className="px-4 pb-3">
-        <h3 className="text-[16px] font-bold mb-1 leading-snug" style={{ color: "var(--text)" }}>
-          {post.title}
-        </h3>
-        <p className="text-[14px] leading-[1.55]" style={{ color: "var(--text-secondary)" }}>
-          {body}
-          {isLong && !expanded && (
-            <button
-              onClick={() => setExpanded(true)}
-              className="ml-1 font-semibold"
-              style={{ color: "var(--accent)" }}
-            >
-              See more
-            </button>
-          )}
-        </p>
-      </div>
-
-      {/* Image */}
-      {post.image && (
-        <div className="px-4 pb-3">
-          <img
-            src={post.image}
-            alt={post.title}
-            className="w-full object-cover"
-            style={{ maxHeight: 320, borderRadius: 10 }}
-            loading="lazy"
-          />
-        </div>
-      )}
-
-      {/* Actions */}
-      <div
-        className="flex items-stretch mx-4 mb-1"
-        style={{ borderTop: "1px solid var(--border)" }}
-      >
-        <ActionButton
-          active={isLiked}
-          onClick={onLike}
-          label={post.likes > 0 ? String(post.likes) : "Like"}
-          icon={
-            <svg width="18" height="18" viewBox="0 0 24 24" fill={isLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
-            </svg>
-          }
-        />
-        <ActionButton
-          label={post.comments > 0 ? String(post.comments) : "Comment"}
-          icon={
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z" />
-            </svg>
-          }
-        />
-        {post.claimed ? (
-          <div className="flex-1 flex items-center justify-center gap-1.5 py-2.5">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-            <span className="text-[13px] font-semibold" style={{ color: "var(--success)" }}>
-              Claimed
+          <div className="flex items-baseline gap-1.5 flex-wrap leading-tight">
+            <span className="text-[15px] font-bold truncate" style={{ color: "var(--text)" }}>
+              {post.author.name}
+            </span>
+            <span className="text-[14px]" style={{ color: "var(--text-3)" }}>
+              {post.author.address ? `${post.author.address} · ` : ""}
+              <time>{post.timestamp}</time>
             </span>
           </div>
-        ) : (
-          <ActionButton
-            label="Claim"
-            highlight
-            icon={
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
-                <line x1="7" y1="7" x2="7.01" y2="7" />
-              </svg>
-            }
-          />
+          <span className="inline-flex items-center gap-1 text-[13px] font-semibold mt-0.5" style={{ color: TONE_COLOR[tone] }}>
+            <Icon name={CATEGORY_ICON[post.category]} size={14} strokeWidth={2} />
+            {CATEGORY_LABELS[post.category]}
+          </span>
+        </div>
+        {kind === "giveaway" && (
+          <StatusBadge tone={post.claimed ? "neutral" : "success"} icon={post.claimed ? "check" : undefined}>
+            {post.claimed ? "Claimed" : "Available"}
+          </StatusBadge>
         )}
       </div>
+
+      {/* Content */}
+      <div className="mt-2.5 pl-[52px]">
+        {expanded ? (
+          <h2 id={`post-${post.id}-title`} className="text-[20px] font-bold leading-snug" style={{ color: "var(--text)" }}>
+            {post.title}
+          </h2>
+        ) : (
+          <Link href={detailHref} className="block">
+            <h2 id={`post-${post.id}-title`} className="text-[17px] font-bold leading-snug" style={{ color: "var(--text)" }}>
+              {post.title}
+            </h2>
+          </Link>
+        )}
+        {post.body && (
+          <p className="text-[16px] leading-[1.55] mt-1 whitespace-pre-line" style={{ color: "var(--text)" }}>
+            {body}
+            {isLong && !open && (
+              <>
+                {" "}
+                <button type="button" onClick={() => setOpen(true)} className="font-semibold" style={{ color: "var(--primary)" }}>
+                  See more
+                </button>
+              </>
+            )}
+          </p>
+        )}
+        {post.image && (
+          <Link href={detailHref} className="block mt-3">
+            <img
+              src={post.image}
+              alt=""
+              className="w-full object-cover rounded-xl"
+              style={{ maxHeight: expanded ? 560 : 380, border: "1px solid var(--border)" }}
+              loading="lazy"
+            />
+          </Link>
+        )}
+
+        {/* Actions: full width under the content so labels fit on a phone */}
+        <div className="flex items-center gap-1 mt-3 -ml-[52px] sm:ml-0">
+          {actions.map((a) => {
+            if (a.type === "message" && !canMessage) return null;
+            if (expanded && a.type === "reply") return null;
+            const count = a.type === "reply" && post.comments > 0 ? ` (${post.comments})` : "";
+            return (
+              <Button
+                key={a.label}
+                size="sm"
+                variant={a.primary ? "soft" : "ghost"}
+                icon={a.icon}
+                onClick={() => go(a.type)}
+                disabled={a.type === "message" && kind === "giveaway" && post.claimed}
+                className="!px-2.5"
+              >
+                {a.label}
+                {count}
+              </Button>
+            );
+          })}
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="heart"
+            onClick={onLike}
+            aria-pressed={isLiked}
+            aria-label={`${isLiked ? "Unlike" : "Like"}${post.likes > 0 ? `, ${post.likes} likes` : ""}`}
+            className={`ml-auto !px-2.5 ${isLiked ? "[&_svg]:fill-current" : ""}`}
+          >
+            {post.likes > 0 ? <span style={{ color: isLiked ? "var(--danger)" : undefined }}>{post.likes}</span> : null}
+          </Button>
+        </div>
+      </div>
     </article>
-  );
-}
-
-function ActionButton({
-  icon,
-  label,
-  onClick,
-  active = false,
-  highlight = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  onClick?: () => void;
-  active?: boolean;
-  highlight?: boolean;
-}) {
-  const color = active
-    ? "var(--accent)"
-    : highlight
-      ? "var(--navy)"
-      : "var(--text-muted)";
-
-  return (
-    <button
-      onClick={onClick}
-      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-opacity active:opacity-50"
-      style={{ color }}
-    >
-      {icon}
-      <span className="text-[13px] font-semibold">{label}</span>
-    </button>
   );
 }

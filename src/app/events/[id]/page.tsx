@@ -2,9 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getEvent, toggleRsvp, getEventPhotos, uploadEventPhoto, addEventPhoto, deleteEventPhoto } from "@/lib/database";
+import { getEvent, toggleRsvp, getEventPhotos, uploadEventPhoto, addEventPhoto, deleteEventPhoto, deleteEvent } from "@/lib/database";
 import { useAuth } from "@/lib/auth-context";
 import AuthGuard from "@/components/AuthGuard";
+import PageHeader from "@/components/ui/PageHeader";
+import Button from "@/components/ui/Button";
+import Icon from "@/components/ui/Icon";
+import Avatar from "@/components/ui/Avatar";
+import EmptyState from "@/components/ui/EmptyState";
+import { Panel, Spinner, Notice, SectionTitle, formatDateLong, formatTime12 } from "@/components/ui/Primitives";
+import { AvatarStack } from "@/components/EventCard";
 
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -12,7 +19,11 @@ export default function EventDetailPage() {
   const [photos, setPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [rsvpBusy, setRsvpBusy] = useState(false);
   const [viewingPhoto, setViewingPhoto] = useState<any>(null);
+  const [showAllGuests, setShowAllGuests] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const router = useRouter();
 
@@ -23,8 +34,7 @@ export default function EventDetailPage() {
 
   async function loadEvent() {
     try {
-      const data = await getEvent(id);
-      setEvent(data);
+      setEvent(await getEvent(id));
     } catch {
       setEvent(null);
     }
@@ -33,25 +43,35 @@ export default function EventDetailPage() {
 
   async function loadPhotos() {
     try {
-      const data = await getEventPhotos(id);
-      setPhotos(data);
+      setPhotos(await getEventPhotos(id));
     } catch {}
   }
 
   async function handleRsvp() {
-    if (!user || !event) return;
-    await toggleRsvp(event.id, user.id);
-    loadEvent();
+    if (!user || !event || rsvpBusy) return;
+    setRsvpBusy(true);
+    setError(null);
+    try {
+      await toggleRsvp(event.id, user.id);
+      await loadEvent();
+    } catch {
+      setError("Couldn't save your RSVP. Try again.");
+    }
+    setRsvpBusy(false);
   }
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files || !user) return;
     setUploading(true);
+    setError(null);
+    let failed = 0;
     for (let i = 0; i < files.length; i++) {
       const url = await uploadEventPhoto(user.id, id, files[i]);
       if (url) await addEventPhoto(id, user.id, url);
+      else failed++;
     }
+    if (failed) setError(`${failed} photo${failed > 1 ? "s" : ""} didn't upload. Try smaller files.`);
     await loadPhotos();
     setUploading(false);
     e.target.value = "";
@@ -64,35 +84,30 @@ export default function EventDetailPage() {
     loadPhotos();
   }
 
-  const [saving, setSaving] = useState(false);
-  async function handleDownload(url: string, filename: string) {
-    if (saving) return;
-    setSaving(true);
+  async function handleDeleteEvent() {
+    if (!user || !event) return;
+    setError(null);
     try {
-      const res = await fetch(url);
-      const blob = await res.blob();
-      const file = new File([blob], filename, { type: blob.type });
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file] }).catch(() => {});
-      } else {
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(a.href);
-      }
-    } catch {}
-    setSaving(false);
+      await deleteEvent(event.id, user.id);
+      router.replace("/events");
+    } catch {
+      setError("Couldn't cancel this event. If this keeps happening, ask a board member.");
+      setConfirmDelete(false);
+    }
   }
 
-  const isRsvped = event?.rsvps?.some((r: any) => r.user_id === user?.id) ?? false;
+  useEffect(() => {
+    if (!viewingPhoto) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setViewingPhoto(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [viewingPhoto]);
 
   if (loading) {
     return (
       <AuthGuard>
-        <div className="flex items-center justify-center min-h-screen" style={{ background: "var(--bg)" }}>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading...</p>
-        </div>
+        <PageHeader title="Event" back="/events" />
+        <Spinner label="Loading event" />
       </AuthGuard>
     );
   }
@@ -100,329 +115,238 @@ export default function EventDetailPage() {
   if (!event) {
     return (
       <AuthGuard>
-        <div className="flex flex-col items-center justify-center min-h-screen px-6" style={{ background: "var(--bg)" }}>
-          <p className="text-lg font-bold mb-1" style={{ color: "var(--text)" }}>Event not found</p>
-          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>It may have been removed or already passed.</p>
-          <button
-            onClick={() => router.push("/events")}
-            className="px-5 py-2.5 rounded-full text-sm font-semibold"
-            style={{ background: "var(--navy)", color: "var(--white)" }}
-          >
-            Back to events
-          </button>
-        </div>
+        <PageHeader title="Event" back="/events" />
+        <EmptyState icon="calendar" title="Event not found" body="It may have been canceled or already passed." action={<Button href="/events">Back to events</Button>} />
       </AuthGuard>
     );
   }
 
-  const date = new Date(event.event_date + "T00:00:00");
-  const formattedDate = date.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+  const isRsvped = event.rsvps?.some((r: any) => r.user_id === user?.id) ?? false;
+  const isHost = event.author_id === user?.id || event.author?.id === user?.id;
+  const guests: any[] = event.rsvps ?? [];
+  const guestInitials = guests.map((r) => r.profiles?.avatar_initials ?? "?");
+  const visibleGuests = showAllGuests ? guests : guests.slice(0, 8);
 
   return (
     <AuthGuard>
-      <div className="flex flex-col min-h-screen pb-24 md:pb-4" style={{ background: "var(--bg)" }}>
-        {/* Cover image or colored header */}
+      <div className="flex flex-col min-h-screen pb-32 md:pb-8" style={{ background: "var(--bg)" }}>
         {event.image_url ? (
-          <div className="relative">
-            <img
-              src={event.image_url}
-              alt={event.title}
-              className="w-full object-cover"
-              style={{ height: 220 }}
-            />
-            <div
-              className="absolute inset-0"
-              style={{ background: "linear-gradient(to top, var(--bg) 0%, transparent 50%)" }}
-            />
+          <div className="relative md:px-6 md:pt-6">
             <button
+              type="button"
               onClick={() => router.back()}
-              className="absolute top-[calc(env(safe-area-inset-top,0px)_+_20px)] left-4 w-9 h-9 rounded-full flex items-center justify-center"
-              style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+              className="absolute top-[calc(env(safe-area-inset-top,0px)_+_12px)] left-3 md:top-9 md:left-9 z-10 w-11 h-11 rounded-full flex items-center justify-center"
+              style={{ background: "var(--surface)", color: "var(--text)", boxShadow: "var(--shadow-md)" }}
+              aria-label="Back"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
+              <Icon name="chevron-left" size={24} />
             </button>
+            <img src={event.image_url} alt="" className="w-full object-cover md:rounded-xl" style={{ height: 240 }} />
           </div>
         ) : (
-          <header className="px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-2">
-            <button
-              onClick={() => router.back()}
-              className="flex items-center gap-1.5 text-sm font-medium mb-3"
-              style={{ color: "var(--accent)" }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-              Back
-            </button>
-          </header>
+          <PageHeader title="Event" back sticky={false} />
         )}
 
-        <main className="flex-1 px-4">
-          {/* Title + date badge */}
-          <div className="flex gap-4 mb-5 animate-fade-up animate-fade-up-delay-1">
-            <div
-              className="flex flex-col items-center justify-center shrink-0 w-16 h-18 rounded-xl py-2"
-              style={{ background: "var(--accent-light)" }}
-            >
-              <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--accent)" }}>
-                {date.toLocaleString("en-US", { month: "short" }).toUpperCase()}
+        <main className="flex-1 px-4 md:px-6 pt-4">
+          <p className="text-[15px] font-bold" style={{ color: "var(--primary)" }}>
+            {formatDateLong(event.event_date)}
+          </p>
+          <h1 className="text-[26px] font-bold leading-tight mt-1" style={{ color: "var(--text)" }}>
+            {event.title}
+          </h1>
+
+          <Panel className="mt-4">
+            <div className="ui-row flex items-center gap-3.5 px-4 py-3.5">
+              <span className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>
+                <Icon name="clock" size={20} />
               </span>
-              <span className="text-2xl font-bold leading-none" style={{ color: "var(--navy)" }}>
-                {date.getDate()}
+              <div>
+                <p className="text-[16px] font-semibold" style={{ color: "var(--text)" }}>
+                  {formatTime12(event.event_time)}
+                </p>
+                <p className="text-[14px]" style={{ color: "var(--text-2)" }}>
+                  {formatDateLong(event.event_date)}
+                </p>
+              </div>
+            </div>
+            <div className="ui-row flex items-center gap-3.5 px-4 py-3.5">
+              <span className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--surface-2)", color: "var(--text-2)" }}>
+                <Icon name="map-pin" size={20} />
               </span>
-              <span className="text-[10px] font-medium uppercase" style={{ color: "var(--text-muted)" }}>
-                {date.toLocaleString("en-US", { weekday: "short" })}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-extrabold tracking-tight mb-1" style={{ color: "var(--navy)" }}>
-                {event.title}
-              </h1>
-              <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
-                Hosted by {event.author?.name ?? "Neighbor"}
-              </p>
-            </div>
-          </div>
-
-          {/* Info rows */}
-          <div
-            className="rounded-2xl overflow-hidden divide-y mb-5 animate-fade-up animate-fade-up-delay-2"
-            style={{ background: "var(--card)", border: "1px solid var(--border)", "--tw-divide-opacity": "1" } as React.CSSProperties}
-          >
-            <div className="flex items-center gap-3.5 p-4" style={{ borderColor: "var(--border)" }}>
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: "var(--accent-light)" }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                  <line x1="16" y1="2" x2="16" y2="6" />
-                  <line x1="8" y1="2" x2="8" y2="6" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-[13px] font-semibold" style={{ color: "var(--text)" }}>{formattedDate}</p>
-                <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>{event.event_time}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3.5 p-4" style={{ borderColor: "var(--border)" }}>
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: "var(--accent-light)" }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                  <circle cx="12" cy="10" r="3" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-[13px] font-semibold" style={{ color: "var(--text)" }}>{event.location}</p>
-                <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>Location</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3.5 p-4" style={{ borderColor: "var(--border)" }}>
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: "var(--accent-light)" }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-[13px] font-semibold" style={{ color: "var(--text)" }}>
-                  {event.rsvps?.length ?? 0} going
+              <div className="min-w-0">
+                <p className="text-[16px] font-semibold" style={{ color: "var(--text)" }}>
+                  {event.location}
                 </p>
-                <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                  {event.rsvps?.length === 0 ? "Be the first to RSVP" : "neighbors attending"}
+                <p className="text-[14px]" style={{ color: "var(--text-2)" }}>
+                  Location
                 </p>
               </div>
             </div>
-          </div>
-
-          {/* Description */}
-          {event.description && (
-            <div className="mb-5 animate-fade-up animate-fade-up-delay-3">
-              <h2 className="text-[11px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--text-muted)" }}>
-                About this event
-              </h2>
-              <div
-                className="p-4 rounded-2xl"
-                style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-              >
-                <p className="text-[13px] leading-relaxed whitespace-pre-wrap" style={{ color: "var(--text-secondary)" }}>
-                  {event.description}
+            <div className="ui-row flex items-center gap-3.5 px-4 py-3.5">
+              <Avatar initials={event.author?.avatar_initials ?? "?"} size={40} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[16px] font-semibold" style={{ color: "var(--text)" }}>
+                  {event.author?.name ?? "Neighbor"}
+                  {isHost ? " (you)" : ""}
+                </p>
+                <p className="text-[14px]" style={{ color: "var(--text-2)" }}>
+                  Host{event.author?.section ? ` · ${event.author.section}` : ""}
                 </p>
               </div>
+              {!isHost && event.author?.id && (
+                <Button href={`/messages/${event.author.id}?about=${encodeURIComponent(event.title)}&kind=event`} size="sm" variant="secondary" icon="message-circle">
+                  Message
+                </Button>
+              )}
             </div>
-          )}
+          </Panel>
 
-          {/* Attendees */}
-          {event.rsvps?.length > 0 && (
-            <div className="mb-6 animate-fade-up animate-fade-up-delay-4">
-              <h2 className="text-[11px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--text-muted)" }}>
-                Who's going
-              </h2>
-              <div className="flex flex-wrap gap-2">
-                {event.rsvps.map((rsvp: any) => (
-                  <div
-                    key={rsvp.user_id}
-                    className="flex items-center gap-2 px-3 py-2 rounded-full"
-                    style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                  >
-                    <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold"
-                      style={{ background: "var(--accent-light)", color: "var(--navy)" }}
-                    >
-                      {rsvp.profiles?.avatar_initials ?? "??"}
-                    </div>
-                    <span className="text-[12px] font-medium" style={{ color: "var(--text)" }}>
-                      {rsvp.profiles?.name ?? "Neighbor"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Photos */}
-          <div className="mb-6 animate-fade-up animate-fade-up-delay-5">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-                Photos ({photos.length})
-              </h2>
-              <label
-                className="text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full cursor-pointer"
-                style={{ background: "var(--accent-light)", color: "var(--navy)" }}
-              >
-                {uploading ? "Uploading..." : "+ Add Photos"}
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={handlePhotoUpload}
-                  disabled={uploading}
-                />
-              </label>
-            </div>
-
-            {photos.length > 0 ? (
-              <div className="grid grid-cols-3 gap-1.5 rounded-2xl overflow-hidden">
-                {photos.map((photo: any) => (
-                  <button
-                    key={photo.id}
-                    onClick={() => setViewingPhoto(photo)}
-                    className="aspect-square overflow-hidden"
-                  >
-                    <img
-                      src={photo.image_url}
-                      alt=""
-                      className="w-full h-full object-cover hover:scale-105 transition-transform"
-                      loading="lazy"
-                    />
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div
-                className="p-6 rounded-2xl text-center"
-                style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-              >
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" className="mx-auto mb-2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <polyline points="21 15 16 10 5 21" />
-                </svg>
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  No photos yet. Be the first to share!
-                </p>
-              </div>
+          {/* RSVP (desktop inline; mobile uses the sticky bar below) */}
+          <div className="hidden md:flex items-center gap-3 mt-4">
+            <Button variant={isRsvped ? "soft" : "primary"} icon={isRsvped ? "check" : undefined} onClick={handleRsvp} loading={rsvpBusy} aria-pressed={isRsvped}>
+              {isRsvped ? "You're going" : "I'm going"}
+            </Button>
+            {isRsvped && (
+              <Button variant="ghost" onClick={handleRsvp} disabled={rsvpBusy}>
+                Can't make it anymore
+              </Button>
             )}
           </div>
 
-          {/* Photo viewer modal */}
-          {viewingPhoto && (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
-              style={{ background: "rgba(0,0,0,0.9)" }}
-              onClick={() => setViewingPhoto(null)}
-            >
-              <div className="absolute top-4 right-4 flex gap-2" style={{ top: "env(safe-area-inset-top, 16px)" }}>
-                {viewingPhoto.user_id === user?.id && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleDeletePhoto(viewingPhoto.id); }}
-                    className="w-10 h-10 rounded-full flex items-center justify-center"
-                    style={{ background: "rgba(255,255,255,0.15)" }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                      <path d="M10 11v6" /><path d="M14 11v6" />
-                    </svg>
-                  </button>
-                )}
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleDownload(viewingPhoto.image_url, `sunburst-photo-${viewingPhoto.id}.jpg`); }}
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ background: "rgba(255,255,255,0.15)" }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-                    <polyline points="16 6 12 2 8 6" />
-                    <line x1="12" y1="2" x2="12" y2="15" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setViewingPhoto(null)}
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ background: "rgba(255,255,255,0.15)" }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              </div>
-              <img
-                src={viewingPhoto.image_url}
-                alt=""
-                className="max-w-full max-h-[80vh] object-contain rounded-lg"
-                onClick={(e) => e.stopPropagation()}
-              />
-              <div className="absolute bottom-6 left-0 right-0 text-center">
-                <p className="text-xs text-white/60">
-                  by {viewingPhoto.uploader?.name ?? "Neighbor"}
-                </p>
-              </div>
+          {error && (
+            <div className="mt-3">
+              <Notice tone="danger" icon="alert-triangle">{error}</Notice>
             </div>
           )}
 
-          {/* RSVP button */}
-          <button
-            onClick={handleRsvp}
-            className="w-full py-3.5 rounded-full font-bold text-sm uppercase tracking-wider transition-all animate-fade-up animate-fade-up-delay-5"
-            style={{
-              background: isRsvped ? "var(--card)" : "var(--navy)",
-              color: isRsvped ? "var(--navy)" : "var(--white)",
-              border: isRsvped ? "2px solid var(--navy)" : "none",
-            }}
+          {event.description && (
+            <>
+              <SectionTitle>About</SectionTitle>
+              <p className="text-[16px] leading-[1.6] whitespace-pre-line" style={{ color: "var(--text)" }}>
+                {event.description}
+              </p>
+            </>
+          )}
+
+          <SectionTitle>{guests.length === 0 ? "Guests" : `${guests.length} going`}</SectionTitle>
+          {guests.length === 0 ? (
+            <p className="text-[15px]" style={{ color: "var(--text-2)" }}>
+              No one has RSVP'd yet. Be the first.
+            </p>
+          ) : (
+            <Panel padded>
+              <AvatarStack initials={guestInitials} total={guests.length} />
+              <ul className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3">
+                {visibleGuests.map((r) => (
+                  <li key={r.user_id} className="text-[15px]" style={{ color: "var(--text)" }}>
+                    {r.profiles?.name ?? "Neighbor"}
+                  </li>
+                ))}
+              </ul>
+              {guests.length > 8 && !showAllGuests && (
+                <button type="button" onClick={() => setShowAllGuests(true)} className="text-[15px] font-semibold mt-2" style={{ color: "var(--primary)" }}>
+                  Show all {guests.length}
+                </button>
+              )}
+            </Panel>
+          )}
+
+          <SectionTitle
+            action={
+              <label className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[14px] font-semibold cursor-pointer" style={{ background: "var(--surface)", border: "1px solid var(--border-strong)", color: "var(--text)" }}>
+                <Icon name="image" size={16} />
+                {uploading ? "Uploading…" : "Add photos"}
+                <input type="file" accept="image/*" multiple className="sr-only" onChange={handlePhotoUpload} disabled={uploading} />
+              </label>
+            }
           >
-            {isRsvped ? "Cancel RSVP" : "RSVP — I'm Going"}
-          </button>
+            Photos{photos.length ? ` (${photos.length})` : ""}
+          </SectionTitle>
+          {photos.length > 0 ? (
+            <ul className="grid grid-cols-3 gap-1.5 rounded-xl overflow-hidden">
+              {photos.map((photo: any) => (
+                <li key={photo.id}>
+                  <button type="button" onClick={() => setViewingPhoto(photo)} className="block w-full aspect-square overflow-hidden" aria-label={`Open photo by ${photo.uploader?.name ?? "neighbor"}`}>
+                    <img src={photo.image_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[15px]" style={{ color: "var(--text-2)" }}>
+              No photos yet. Add some during or after the event.
+            </p>
+          )}
+
+          {isHost && (
+            <>
+              <SectionTitle>Host tools</SectionTitle>
+              <Panel padded>
+                <p className="text-[14px] mb-3" style={{ color: "var(--text-2)" }}>
+                  Canceling removes the event and everyone's RSVPs.
+                </p>
+                {!confirmDelete ? (
+                  <Button size="sm" variant="danger" icon="trash" onClick={() => setConfirmDelete(true)}>
+                    Cancel this event
+                  </Button>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="danger" onClick={handleDeleteEvent}>
+                      Yes, cancel it
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(false)}>
+                      Keep event
+                    </Button>
+                  </div>
+                )}
+              </Panel>
+            </>
+          )}
         </main>
+
+        {/* Mobile RSVP bar */}
+        <div
+          className="md:hidden fixed bottom-[calc(58px+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 px-4 py-3 flex items-center gap-3"
+          style={{ background: "var(--surface)", borderTop: "1px solid var(--border)" }}
+        >
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px]" style={{ color: "var(--text-3)" }}>
+              {isRsvped ? "Your RSVP" : guests.length ? `${guests.length} going` : "Be the first to RSVP"}
+            </p>
+            <p className="text-[15px] font-semibold truncate" style={{ color: "var(--text)" }}>
+              {isRsvped ? "You're going" : formatDateLong(event.event_date)}
+            </p>
+          </div>
+          <Button variant={isRsvped ? "secondary" : "primary"} icon={isRsvped ? "check" : undefined} onClick={handleRsvp} loading={rsvpBusy} aria-pressed={isRsvped}>
+            {isRsvped ? "Going" : "I'm going"}
+          </Button>
+        </div>
+
+        {viewingPhoto && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Photo"
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+            style={{ background: "rgba(0,0,0,0.92)" }}
+            onClick={() => setViewingPhoto(null)}
+          >
+            <div className="absolute right-4 flex gap-2" style={{ top: "calc(env(safe-area-inset-top, 0px) + 16px)" }}>
+              {viewingPhoto.user_id === user?.id && (
+                <button type="button" onClick={(e) => { e.stopPropagation(); handleDeletePhoto(viewingPhoto.id); }} className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: "rgba(255,255,255,0.15)", color: "white" }} aria-label="Delete photo">
+                  <Icon name="trash" size={20} />
+                </button>
+              )}
+              <button type="button" onClick={() => setViewingPhoto(null)} className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: "rgba(255,255,255,0.15)", color: "white" }} aria-label="Close" autoFocus>
+                <Icon name="x" size={22} />
+              </button>
+            </div>
+            <img src={viewingPhoto.image_url} alt="" className="max-w-full max-h-[80vh] object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
+            <p className="absolute bottom-6 left-0 right-0 text-center text-[14px]" style={{ color: "rgba(255,255,255,0.7)" }}>
+              Photo by {viewingPhoto.uploader?.name ?? "a neighbor"}
+            </p>
+          </div>
+        )}
       </div>
     </AuthGuard>
   );

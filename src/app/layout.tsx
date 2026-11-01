@@ -5,7 +5,7 @@ import AppShell from "@/components/AppShell";
 
 export const metadata: Metadata = {
   title: "Sunburst Farms East",
-  description: "Your neighborhood, connected. Share abundance, discover events, and meet your neighbors.",
+  description: "The neighborhood app for Sunburst Farms East, Phoenix. Neighbors, events, marketplace, and association info.",
   manifest: "/manifest.json",
   icons: {
     icon: "/favicon.png",
@@ -18,19 +18,14 @@ export const metadata: Metadata = {
   },
 };
 
+// Pinch zoom stays enabled so residents can enlarge text.
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  themeColor: "#2a3d2e",
+  themeColor: "#ffffff",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className="h-full">
       <body className="min-h-full flex flex-col">

@@ -2,20 +2,19 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import {
-  ListingCategory,
-  ListingCondition,
-  LISTING_CATEGORY_LABELS,
-  LISTING_CATEGORY_EMOJI,
-  LISTING_CONDITION_LABELS,
-} from "@/lib/data";
+import { type ListingCategory, type ListingCondition, LISTING_CATEGORY_LABELS, LISTING_CONDITION_LABELS } from "@/lib/data";
 import { createListing, uploadListingImage } from "@/lib/database";
 import { useAuth } from "@/lib/auth-context";
-
 import AuthGuard from "@/components/AuthGuard";
+import PageHeader from "@/components/ui/PageHeader";
+import Button from "@/components/ui/Button";
+import Icon from "@/components/ui/Icon";
+import { Field, TextInput, TextArea, ChoiceChips } from "@/components/ui/Field";
+import { Notice } from "@/components/ui/Primitives";
+import EmptyState from "@/components/ui/EmptyState";
 
-const CATEGORIES: ListingCategory[] = ["home_garden", "furniture", "tools", "equestrian", "electronics", "vehicles", "other"];
-const CONDITIONS: ListingCondition[] = ["new", "like_new", "good", "fair"];
+const CATEGORIES = (Object.keys(LISTING_CATEGORY_LABELS) as ListingCategory[]).map((c) => ({ value: c, label: LISTING_CATEGORY_LABELS[c] }));
+const CONDITIONS = (Object.keys(LISTING_CONDITION_LABELS) as ListingCondition[]).map((c) => ({ value: c, label: LISTING_CONDITION_LABELS[c] }));
 
 interface PhotoItem {
   file: File;
@@ -27,289 +26,190 @@ export default function NewListingPage() {
   const [condition, setCondition] = useState<ListingCondition>("good");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [isFree, setIsFree] = useState(false);
+  const [pricing, setPricing] = useState<"price" | "free">("price");
   const [price, setPrice] = useState("");
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
-  const [submitted, setSubmitted] = useState(false);
+  const [tried, setTried] = useState(false);
+  const [created, setCreated] = useState<{ id: string } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const router = useRouter();
 
+  const isFree = pricing === "free";
+  const priceNum = parseFloat(price);
+  const errors = {
+    title: !title.trim() ? "Add a short title" : undefined,
+    category: !category ? "Pick a category" : undefined,
+    price: !isFree && !(priceNum > 0) ? "Enter a price, or choose Free" : undefined,
+  };
+  const valid = !errors.title && !errors.category && !errors.price;
+
   function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
-    if (!files.length) return;
-    const remaining = 5 - photos.length;
-    const toAdd = files.slice(0, remaining);
+    const toAdd = files.slice(0, 5 - photos.length);
     toAdd.forEach((file) => {
       const reader = new FileReader();
-      reader.onload = () => {
-        setPhotos((prev) => [...prev, { file, preview: reader.result as string }]);
-      };
+      reader.onload = () => setPhotos((prev) => [...prev, { file, preview: reader.result as string }]);
       reader.readAsDataURL(file);
     });
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  function removePhoto(index: number) {
-    setPhotos((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  async function handleSubmit() {
-    if (!category || !title || !user) return;
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setTried(true);
+    if (!valid || !user || loading) return;
     setLoading(true);
+    setError(null);
     try {
       const imageUrls: string[] = [];
       for (const photo of photos) {
         const url = await uploadListingImage(user.id, photo.file);
-        if (url) imageUrls.push(url);
+        if (!url) throw new Error("upload");
+        imageUrls.push(url);
       }
-      await createListing(
-        user.id,
-        title,
-        description,
-        category,
-        condition,
-        isFree ? null : parseFloat(price) || 0,
-        isFree,
-        imageUrls.length > 0 ? imageUrls : undefined
-      );
-      setSubmitted(true);
-    } catch {
-      // handle error
+      const data = await createListing(user.id, title.trim(), description.trim(), category!, condition, isFree ? null : priceNum, isFree, imageUrls.length ? imageUrls : undefined);
+      setCreated({ id: data.id });
+    } catch (err) {
+      setError(err instanceof Error && err.message === "upload" ? "One of the photos didn't upload. Try a smaller photo or remove it." : "Couldn't publish the listing. Check your connection and try again.");
     }
     setLoading(false);
   }
 
-  if (submitted) {
+  if (created) {
     return (
       <AuthGuard>
-        <div className="flex flex-col min-h-screen pb-24 md:pb-4 items-center justify-center px-6" style={{ background: "var(--bg)" }}>
-          <div className="text-center animate-fade-up">
-            <span className="text-5xl block mb-4">{"\u{1F389}"}</span>
-            <h1 className="font-extrabold tracking-tight text-2xl mb-2" style={{ color: "var(--navy)" }}>
-              Listed!
-            </h1>
-            <p className="text-sm mb-6" style={{ color: "var(--text-muted)" }}>
-              Your item is now visible to all neighbors in Sunburst Farms.
-            </p>
-            <button
-              onClick={() => router.push("/market")}
-              className="px-6 py-3 rounded-full font-semibold text-sm"
-              style={{ background: "var(--navy)", color: "var(--white)" }}
-            >
-              View Marketplace
-            </button>
-          </div>
-                  </div>
+        <PageHeader title="Listed" back="/market" />
+        <EmptyState
+          icon="check-circle"
+          title="Your item is live"
+          body="Neighbors can see it in the Marketplace now. You'll get messages here in the app."
+          action={
+            <div className="flex gap-2 flex-wrap justify-center">
+              <Button href={`/market/${created.id}`}>View listing</Button>
+              <Button href="/market/new" variant="secondary" onClick={() => router.refresh()}>List another</Button>
+            </div>
+          }
+        />
       </AuthGuard>
     );
   }
 
-  const canSubmit = category && title && (isFree || (price && parseFloat(price) > 0));
-
   return (
     <AuthGuard>
-      <div className="flex flex-col min-h-screen pb-24 md:pb-4" style={{ background: "var(--bg)" }}>
-        <header className="px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-3">
-          <h1 className="font-extrabold tracking-tight text-2xl" style={{ color: "var(--navy)" }}>
-            List an item
-          </h1>
-          <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
-            Sell or give away to your neighbors
-          </p>
-        </header>
+      <div className="flex flex-col min-h-screen pb-28 md:pb-8" style={{ background: "var(--bg)" }}>
+        <PageHeader title="List an item" subtitle="Sell or give away to neighbors" back="/market" sticky={false} />
 
-        <main className="flex-1 px-4">
-          <div className="mb-4">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleImageSelect}
-              className="hidden"
-            />
-
-            {photos.length > 0 ? (
-              <div className="flex gap-2 overflow-x-auto hide-scrollbar -mx-4 px-4 pb-1">
-                {photos.map((photo, i) => (
-                  <div key={i} className="relative shrink-0 w-28 h-28 rounded-xl overflow-hidden">
-                    <img
-                      src={photo.preview}
-                      alt={`Photo ${i + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      onClick={() => removePhoto(i)}
-                      className="absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold"
-                      style={{ background: "var(--navy)", color: "var(--white)" }}
-                    >
-                      X
-                    </button>
-                    {i === 0 && (
-                      <span
-                        className="absolute bottom-1 left-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
-                        style={{ background: "var(--navy)", color: "var(--white)" }}
-                      >
-                        Cover
-                      </span>
-                    )}
-                  </div>
-                ))}
-                {photos.length < 5 && (
+        <form onSubmit={handleSubmit} noValidate className="flex-1 px-4 md:px-6">
+          {/* Photos */}
+          <div className="mb-5">
+            <p className="text-[15px] font-semibold mb-1.5" style={{ color: "var(--text)" }}>
+              Photos <span className="font-normal" style={{ color: "var(--text-3)" }}>(up to 5)</span>
+            </p>
+            <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageSelect} className="sr-only" id="listing-photos" />
+            <div className="flex gap-2 overflow-x-auto hide-scrollbar -mx-4 px-4 md:-mx-6 md:px-6">
+              {photos.map((photo, i) => (
+                <div key={i} className="relative shrink-0 w-28 h-28 rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+                  <img src={photo.preview} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
                   <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="shrink-0 w-28 h-28 rounded-xl flex flex-col items-center justify-center gap-1"
-                    style={{ background: "var(--card)", border: "2px dashed var(--text-muted)" }}
+                    type="button"
+                    onClick={() => setPhotos((p) => p.filter((_, j) => j !== i))}
+                    className="absolute top-1 right-1 w-8 h-8 rounded-full flex items-center justify-center"
+                    style={{ background: "var(--text)", color: "white" }}
+                    aria-label={`Remove photo ${i + 1}`}
                   >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="12" y1="5" x2="12" y2="19" />
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                    <span className="text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>
-                      {photos.length}/5
-                    </span>
+                    <Icon name="x" size={16} strokeWidth={2.5} />
                   </button>
-                )}
-              </div>
-            ) : (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full aspect-[4/3] rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer"
-                style={{ background: "var(--card)", border: "2px dashed var(--text-muted)" }}
-              >
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <polyline points="21 15 16 10 5 21" />
-                </svg>
-                <span className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
-                  Add photos (up to 5)
-                </span>
-              </button>
-            )}
-          </div>
-
-          <div className="mb-4">
-            <label className="text-[11px] font-semibold uppercase tracking-widest mb-2 block" style={{ color: "var(--text-muted)" }}>
-              Title
-            </label>
-            <input
-              type="text"
-              placeholder="What are you selling?"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-              style={{ background: "var(--card)", color: "var(--text)", border: "1px solid var(--border)" }}
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="text-[11px] font-semibold uppercase tracking-widest mb-2 block" style={{ color: "var(--text-muted)" }}>
-              Price
-            </label>
-            <div className="flex gap-3 items-center">
-              <button
-                onClick={() => setIsFree(!isFree)}
-                className="shrink-0 px-4 py-3 rounded-xl text-sm font-semibold transition-all"
-                style={{
-                  background: isFree ? "var(--navy)" : "var(--card)",
-                  color: isFree ? "var(--white)" : "var(--text)",
-                  border: isFree ? "none" : "1px solid var(--border)",
-                }}
-              >
-                Free
-              </button>
-              {!isFree && (
-                <div className="flex-1 relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold" style={{ color: "var(--text-muted)" }}>$</span>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    className="w-full pl-8 pr-4 py-3 rounded-xl text-sm outline-none"
-                    style={{ background: "var(--card)", color: "var(--text)", border: "1px solid var(--border)" }}
-                  />
+                  {i === 0 && (
+                    <span className="absolute bottom-1 left-1 text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ background: "var(--text)", color: "white" }}>
+                      Cover
+                    </span>
+                  )}
                 </div>
+              ))}
+              {photos.length < 5 && (
+                <label
+                  htmlFor="listing-photos"
+                  className={`shrink-0 ${photos.length ? "w-28 h-28" : "w-full h-36"} rounded-lg flex flex-col items-center justify-center gap-1.5 cursor-pointer`}
+                  style={{ background: "var(--surface)", border: "1.5px dashed var(--border-strong)", color: "var(--text-2)" }}
+                >
+                  <Icon name="image" size={26} />
+                  <span className="text-[14px] font-semibold">{photos.length ? "Add more" : "Add photos"}</span>
+                </label>
               )}
             </div>
           </div>
 
-          <div className="mb-4">
-            <label className="text-[11px] font-semibold uppercase tracking-widest mb-2 block" style={{ color: "var(--text-muted)" }}>
-              Category
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setCategory(cat)}
-                  className="px-3.5 py-2 rounded-xl text-sm font-medium transition-all"
-                  style={{
-                    background: category === cat ? "var(--navy)" : "var(--card)",
-                    color: category === cat ? "var(--white)" : "var(--text)",
-                    border: category === cat ? "none" : "1px solid var(--border)",
-                  }}
-                >
-                  {LISTING_CATEGORY_EMOJI[cat]} {LISTING_CATEGORY_LABELS[cat]}
-                </button>
-              ))}
-            </div>
-          </div>
+          <Field label="Title" required error={tried ? errors.title : undefined}>
+            {(id, by) => <TextInput id={id} describedBy={by} value={title} onChange={setTitle} placeholder="What are you selling?" invalid={tried && !!errors.title} />}
+          </Field>
 
           <div className="mb-4">
-            <label className="text-[11px] font-semibold uppercase tracking-widest mb-2 block" style={{ color: "var(--text-muted)" }}>
-              Condition
-            </label>
-            <div className="flex gap-2">
-              {CONDITIONS.map((cond) => (
-                <button
-                  key={cond}
-                  onClick={() => setCondition(cond)}
-                  className="px-3.5 py-2 rounded-xl text-sm font-medium transition-all flex-1"
-                  style={{
-                    background: condition === cond ? "var(--navy)" : "var(--card)",
-                    color: condition === cond ? "var(--white)" : "var(--text)",
-                    border: condition === cond ? "none" : "1px solid var(--border)",
-                  }}
-                >
-                  {LISTING_CONDITION_LABELS[cond]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <label className="text-[11px] font-semibold uppercase tracking-widest mb-2 block" style={{ color: "var(--text-muted)" }}>
-              Description
-            </label>
-            <textarea
-              placeholder="Tell neighbors about this item..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
-              style={{ background: "var(--card)", color: "var(--text)", border: "1px solid var(--border)" }}
+            <p className="text-[15px] font-semibold mb-1.5" style={{ color: "var(--text)" }}>
+              Price <span style={{ color: "var(--danger)" }} aria-hidden>*</span>
+            </p>
+            <ChoiceChips
+              label="Pricing"
+              value={pricing}
+              onChange={(v) => setPricing(v as "price" | "free")}
+              options={[
+                { value: "price", label: "Set a price" },
+                { value: "free", label: "Free" },
+              ]}
             />
+            {!isFree && (
+              <div className="mt-3 max-w-[200px]">
+                <label htmlFor="listing-price" className="sr-only">Price in dollars</label>
+                <TextInput id="listing-price" value={price} onChange={setPrice} placeholder="0" type="number" inputMode="decimal" min="0" step="1" prefix="$" invalid={tried && !!errors.price} />
+              </div>
+            )}
+            {tried && errors.price && (
+              <p role="alert" className="text-[14px] mt-1.5 font-medium" style={{ color: "var(--danger)" }}>
+                {errors.price}
+              </p>
+            )}
           </div>
 
-          <button
-            onClick={handleSubmit}
-            disabled={loading || !canSubmit}
-            className="w-full py-3.5 rounded-full font-bold text-sm uppercase tracking-wider transition-opacity"
-            style={{
-              background: canSubmit ? "var(--navy)" : "var(--text-muted)",
-              color: "var(--white)",
-              opacity: canSubmit && !loading ? 1 : 0.5,
-            }}
-          >
-            {loading ? "Listing..." : "List item"}
-          </button>
-        </main>
+          <div className="mb-4">
+            <p className="text-[15px] font-semibold mb-1.5" style={{ color: "var(--text)" }}>
+              Category <span style={{ color: "var(--danger)" }} aria-hidden>*</span>
+            </p>
+            <ChoiceChips label="Category" value={category} onChange={setCategory} options={CATEGORIES} />
+            {tried && errors.category && (
+              <p role="alert" className="text-[14px] mt-1.5 font-medium" style={{ color: "var(--danger)" }}>
+                {errors.category}
+              </p>
+            )}
+          </div>
 
-              </div>
+          <div className="mb-4">
+            <p className="text-[15px] font-semibold mb-1.5" style={{ color: "var(--text)" }}>
+              Condition
+            </p>
+            <ChoiceChips label="Condition" value={condition} onChange={setCondition} options={CONDITIONS} />
+          </div>
+
+          <Field label="Description" optional hint="Size, age, what's included, anything a buyer should know.">
+            {(id, by) => <TextArea id={id} describedBy={by} value={description} onChange={setDescription} rows={4} placeholder="Tell neighbors about this item" />}
+          </Field>
+
+          <p className="text-[14px] mb-4" style={{ color: "var(--text-2)" }}>
+            Pickup details are shared by message, not posted publicly.
+          </p>
+
+          {error && (
+            <div className="mb-4">
+              <Notice tone="danger" icon="alert-triangle">{error}</Notice>
+            </div>
+          )}
+
+          <Button type="submit" full size="lg" loading={loading}>
+            {loading ? "Publishing" : "Publish listing"}
+          </Button>
+        </form>
+      </div>
     </AuthGuard>
   );
 }

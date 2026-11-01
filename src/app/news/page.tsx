@@ -1,74 +1,38 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import Link from "next/link";
 import AuthGuard from "@/components/AuthGuard";
+import PageHeader from "@/components/ui/PageHeader";
+import Icon from "@/components/ui/Icon";
+import EmptyState from "@/components/ui/EmptyState";
+import { Panel, Spinner, Notice, timeAgo } from "@/components/ui/Primitives";
 import type { NewsItem, SourceSummary, SourceKind, Group } from "@/lib/newsSources";
 
 type View = "all" | "nearby" | "sports" | "alerts";
 
 const NEARBY_TERMS = [
-  "north phoenix",
-  "scottsdale",
-  "paradise valley",
-  "85254",
-  "85032",
-  "kierland",
-  "desert ridge",
-  "thunderbird",
-  "cactus rd",
-  "cactus road",
-  "shea blvd",
-  "bell rd",
-  "bell road",
-  "greenway",
-  "cave creek",
-  "paradise ridge",
-  "deer valley",
-  "sunburst",
-  "tatum",
-  "56th st",
-  "scottsdale rd",
-  "paradise valley mall",
-  "pv mall",
-  "horizon high",
-  "sunnyslope",
-  "moon valley",
+  "north phoenix", "scottsdale", "paradise valley", "85254", "85032", "kierland", "desert ridge", "thunderbird",
+  "cactus rd", "cactus road", "shea blvd", "bell rd", "bell road", "greenway", "cave creek", "paradise ridge",
+  "deer valley", "sunburst", "tatum", "56th st", "scottsdale rd", "paradise valley mall", "pv mall", "horizon high",
+  "sunnyslope", "moon valley",
 ];
 
 const KIND_LABEL: Record<SourceKind, string> = {
   alert: "Alerts",
   tv: "TV",
-  paper: "Papers & Online",
+  paper: "Papers & online",
   radio: "Radio",
   gov: "Government",
-  "sports-net": "Sports Networks",
+  "sports-net": "Sports networks",
   "sports-team": "Teams",
 };
 const NEWS_KINDS: SourceKind[] = ["tv", "paper", "radio", "gov"];
 const SPORTS_KINDS: SourceKind[] = ["sports-net", "sports-team"];
-
-const VIEW_GROUP: Record<View, Group | null> = {
-  all: "news",
-  nearby: null,
-  sports: "sports",
-  alerts: "alert",
-};
+const VIEW_GROUP: Record<View, Group | null> = { all: "news", nearby: null, sports: "sports", alerts: "alert" };
 
 function isNearby(item: NewsItem): boolean {
   const text = `${item.title} ${item.description}`.toLowerCase();
   return NEARBY_TERMS.some((t) => text.includes(t));
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
 }
 
 function untilTime(iso: string): string {
@@ -78,32 +42,22 @@ function untilTime(iso: string): string {
   return sameDay ? `until ${time}` : `until ${d.toLocaleDateString("en-US", { weekday: "short" })} ${time}`;
 }
 
-function severityColor(sev?: string): string {
-  if (sev === "Extreme" || sev === "Severe") return "var(--danger)";
-  return "var(--warning)";
+function severityTone(sev?: string): "danger" | "warning" {
+  return sev === "Extreme" || sev === "Severe" ? "danger" : "warning";
 }
 
-function Pill({
-  active,
-  onClick,
-  children,
-  tone = "navy",
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-  tone?: "navy" | "danger";
-}) {
-  const activeBg = tone === "danger" ? "var(--danger)" : "var(--navy)";
+function ViewTab({ active, onClick, children, tone = "default" }: { active: boolean; onClick: () => void; children: React.ReactNode; tone?: "default" | "danger" }) {
+  const bg = tone === "danger" ? "var(--danger)" : "var(--primary)";
   return (
     <button
+      type="button"
       onClick={onClick}
-      className="shrink-0 px-3 py-1.5 rounded-full text-[12px] whitespace-nowrap transition-all active:scale-95"
+      aria-pressed={active}
+      className="shrink-0 px-3.5 h-9 rounded-lg text-[14px] font-semibold whitespace-nowrap transition-colors"
       style={{
-        background: active ? activeBg : "var(--card)",
-        color: active ? "var(--white)" : "var(--text-secondary)",
-        border: active ? `1px solid ${activeBg}` : "1px solid var(--border)",
-        fontWeight: active ? 700 : 600,
+        background: active ? bg : "var(--surface)",
+        color: active ? "var(--text-on-primary)" : tone === "danger" ? "var(--danger)" : "var(--text-2)",
+        border: `1px solid ${active ? bg : "var(--border-strong)"}`,
       }}
     >
       {children}
@@ -111,27 +65,18 @@ function Pill({
   );
 }
 
-function Chip({
-  active,
-  onClick,
-  children,
-  title,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-  title?: string;
-}) {
+function SourceChip({ active, onClick, children, title }: { active: boolean; onClick: () => void; children: React.ReactNode; title?: string }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       title={title}
-      className="shrink-0 px-3 py-1 rounded-lg text-[11.5px] whitespace-nowrap transition-all active:scale-95"
+      aria-pressed={active}
+      className="shrink-0 px-3 h-8 rounded-md text-[13px] font-semibold whitespace-nowrap transition-colors"
       style={{
-        background: active ? "var(--accent-light)" : "transparent",
-        color: active ? "var(--accent)" : "var(--text-secondary)",
-        border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
-        fontWeight: active ? 700 : 600,
+        background: active ? "var(--primary-soft)" : "transparent",
+        color: active ? "var(--primary-soft-text)" : "var(--text-2)",
+        border: `1px solid ${active ? "var(--primary)" : "var(--border)"}`,
       }}
     >
       {children}
@@ -170,8 +115,7 @@ export default function NewsPage() {
     return list;
   }, [items, view, sourceId]);
 
-  const byKind = (kinds: SourceKind[]) =>
-    kinds.flatMap((kind) => sources.filter((s) => s.kind === kind && s.count > 0));
+  const byKind = (kinds: SourceKind[]) => kinds.flatMap((kind) => sources.filter((s) => s.kind === kind && s.count > 0));
   const newsSources = useMemo(() => byKind(NEWS_KINDS), [sources]); // eslint-disable-line react-hooks/exhaustive-deps
   const sportsSources = useMemo(() => byKind(SPORTS_KINDS), [sources]); // eslint-disable-line react-hooks/exhaustive-deps
   const chipSources = view === "sports" ? sportsSources : view === "alerts" ? [] : newsSources;
@@ -179,25 +123,11 @@ export default function NewsPage() {
 
   const switchView = (next: View) => {
     setView(next);
-    // Drop a source pick that doesn't belong to the new view
-    const keep =
-      next === "sports"
-        ? sportsSources.some((s) => s.id === sourceId)
-        : next === "alerts"
-          ? false
-          : newsSources.some((s) => s.id === sourceId);
+    const keep = next === "sports" ? sportsSources.some((s) => s.id === sourceId) : next === "alerts" ? false : newsSources.some((s) => s.id === sourceId);
     if (!keep) setSourceId(null);
   };
 
-  const toggleSource = (id: string) => setSourceId((cur) => (cur === id ? null : id));
-
-  const emptyTitle = error
-    ? "News unavailable"
-    : view === "alerts"
-      ? "No active alerts"
-      : view === "nearby"
-        ? "Nothing near us right now"
-        : "No stories yet";
+  const emptyTitle = error ? "News unavailable" : view === "alerts" ? "No active alerts" : view === "nearby" ? "Nothing near us right now" : "No stories yet";
   const emptyBody = error
     ? "Couldn't reach the news feeds. Try again in a bit."
     : view === "alerts"
@@ -208,138 +138,56 @@ export default function NewsPage() {
 
   return (
     <AuthGuard>
-      <div className="flex flex-col min-h-screen pb-24 md:pb-6" style={{ background: "var(--bg)" }}>
-        <header
-          className="sticky top-0 z-40 px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-2"
-          style={{ background: "var(--bg)" }}
+      <div className="flex flex-col min-h-screen pb-24 md:pb-8" style={{ background: "var(--bg)" }}>
+        <PageHeader
+          title="Local news & sports"
+          subtitle={loading ? "Loading sources…" : `${liveCount} Arizona sources${updatedAt ? `, updated ${timeAgo(updatedAt)}` : ""}`}
+          back="/community"
         >
-          <div className="flex items-center gap-3 pt-2 mb-3">
-            <Link
-              href="/"
-              className="w-10 h-10 flex items-center justify-center rounded-full active:opacity-70"
-              style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-            >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-            </Link>
-            <div className="flex-1">
-              <h1 className="text-[20px] font-extrabold tracking-tight leading-none" style={{ color: "var(--navy)" }}>
-                Arizona News &amp; Sports
-              </h1>
-              <p className="text-[11px] font-medium mt-1" style={{ color: "var(--text-muted)" }}>
-                {loading
-                  ? "Loading sources…"
-                  : `${liveCount} live sources${updatedAt ? ` · updated ${timeAgo(updatedAt)}` : ""}`}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex gap-2 mb-2 overflow-x-auto hide-scrollbar -mx-4 px-4">
-            <Pill active={view === "all"} onClick={() => switchView("all")}>
-              {"\u{1F4F0}"} News
-            </Pill>
-            <Pill active={view === "nearby"} onClick={() => switchView("nearby")}>
-              {"\u{1F4CD}"} Near Us
-            </Pill>
-            <Pill active={view === "sports"} onClick={() => switchView("sports")}>
-              {"\u{1F3C8}"} Sports
-            </Pill>
+          <div role="group" aria-label="View" className="flex gap-2 overflow-x-auto hide-scrollbar -mx-4 px-4 md:-mx-6 md:px-6 py-0.5">
+            <ViewTab active={view === "all"} onClick={() => switchView("all")}>News</ViewTab>
+            <ViewTab active={view === "nearby"} onClick={() => switchView("nearby")}>Near us</ViewTab>
+            <ViewTab active={view === "sports"} onClick={() => switchView("sports")}>Sports</ViewTab>
             {alerts.length > 0 && (
-              <Pill active={view === "alerts"} onClick={() => switchView("alerts")} tone="danger">
-                {"\u{1F6A8}"} Alerts ({alerts.length})
-              </Pill>
+              <ViewTab active={view === "alerts"} onClick={() => switchView("alerts")} tone="danger">
+                Alerts ({alerts.length})
+              </ViewTab>
             )}
           </div>
-
           {!loading && chipSources.length > 0 && (
-            <div className="flex gap-1.5 overflow-x-auto hide-scrollbar -mx-4 px-4 pb-2 items-center">
-              <Chip active={sourceId === null} onClick={() => setSourceId(null)}>
-                {view === "sports" ? "All sports" : "Every source"}
-              </Chip>
+            <div role="group" aria-label="Source" className="flex gap-1.5 overflow-x-auto hide-scrollbar -mx-4 px-4 md:-mx-6 md:px-6 mt-2 items-center">
+              <SourceChip active={sourceId === null} onClick={() => setSourceId(null)}>{view === "sports" ? "All sports" : "Every source"}</SourceChip>
               {chipSources.map((s, i) => {
                 const prev = chipSources[i - 1];
                 const newKind = view === "sports" && prev && prev.kind !== s.kind;
                 return (
                   <span key={s.id} className="flex items-center gap-1.5 shrink-0">
-                    {newKind && <span className="w-px h-4 mx-0.5" style={{ background: "var(--border)" }} />}
-                    <Chip active={sourceId === s.id} onClick={() => toggleSource(s.id)} title={s.name}>
+                    {newKind && <span className="w-px h-4 mx-0.5" style={{ background: "var(--border-strong)" }} aria-hidden />}
+                    <SourceChip active={sourceId === s.id} onClick={() => setSourceId((cur) => (cur === s.id ? null : s.id))} title={s.name}>
                       {s.short}
-                    </Chip>
+                    </SourceChip>
                   </span>
                 );
               })}
             </div>
           )}
-        </header>
+        </PageHeader>
 
-        <main className="flex-1 px-4">
+        <main className="flex-1 px-4 md:px-6">
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <div
-                className="w-7 h-7 rounded-full animate-spin"
-                style={{ border: "2.5px solid var(--border)", borderTopColor: "var(--accent)" }}
-              />
-            </div>
+            <Spinner label="Loading news" />
           ) : (
             <>
-              {/* Active weather alerts banner */}
               {view === "all" && !sourceId && alerts.length > 0 && (
-                <div className="flex flex-col gap-2 mb-3 animate-fade-up">
-                  {alerts.slice(0, 2).map((a) => {
-                    const color = severityColor(a.severity);
-                    return (
-                      <a
-                        key={a.title + a.expiresAt}
-                        href={a.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex gap-3 p-3.5 rounded-2xl active:opacity-70"
-                        style={{ background: "var(--card)", border: `1.5px solid ${color}` }}
-                      >
-                        <div
-                          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-[17px]"
-                          style={{ background: color, color: "var(--white)" }}
-                        >
-                          {"⚠"}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-[14px] font-extrabold" style={{ color }}>
-                              {a.title}
-                            </span>
-                            {a.expiresAt && (
-                              <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
-                                {untilTime(a.expiresAt)}
-                              </span>
-                            )}
-                          </div>
-                          {a.description && (
-                            <p
-                              className="text-[12px] leading-relaxed mt-0.5 overflow-hidden"
-                              style={{
-                                color: "var(--text-secondary)",
-                                display: "-webkit-box",
-                                WebkitLineClamp: 2,
-                                WebkitBoxOrient: "vertical",
-                              }}
-                            >
-                              {a.description}
-                            </p>
-                          )}
-                          <span className="text-[10.5px] font-semibold" style={{ color: "var(--text-muted)" }}>
-                            National Weather Service &middot; Maricopa County
-                          </span>
-                        </div>
-                      </a>
-                    );
-                  })}
+                <div className="flex flex-col gap-2 mb-3">
+                  {alerts.slice(0, 2).map((a) => (
+                    <Notice key={a.title + a.expiresAt} tone={severityTone(a.severity)} icon="alert-triangle" title={`${a.title}${a.expiresAt ? ` · ${untilTime(a.expiresAt)}` : ""}`}>
+                      {a.description && <span className="block line-clamp-2">{a.description}</span>}
+                      <span className="block text-[13px] mt-1" style={{ color: "var(--text-3)" }}>National Weather Service, Maricopa County</span>
+                    </Notice>
+                  ))}
                   {alerts.length > 2 && (
-                    <button
-                      onClick={() => switchView("alerts")}
-                      className="text-[12px] font-bold text-center py-1"
-                      style={{ color: "var(--danger)" }}
-                    >
+                    <button type="button" onClick={() => switchView("alerts")} className="text-[14px] font-semibold text-center py-1" style={{ color: "var(--danger)" }}>
                       See all {alerts.length} active alerts
                     </button>
                   )}
@@ -347,84 +195,48 @@ export default function NewsPage() {
               )}
 
               {error || visible.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center">
-                  <span className="text-4xl mb-3">{view === "alerts" ? "☀️" : view === "sports" ? "\u{1F3C8}" : "\u{1F4F0}"}</span>
-                  <p className="text-[15px] font-bold mb-1" style={{ color: "var(--navy)" }}>
-                    {emptyTitle}
-                  </p>
-                  <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>
-                    {emptyBody}
-                  </p>
-                </div>
+                <EmptyState icon={view === "alerts" ? "sun" : "newspaper"} title={emptyTitle} body={emptyBody} />
               ) : (
-                <div
-                  className="rounded-2xl overflow-hidden divide-y animate-fade-up"
-                  style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                >
-                  {visible.map((item) => {
-                    const isAlert = item.group === "alert";
-                    // Byline: the picked source if it carried the story, else the first one
-                    const bylineId = sourceId && item.sources.includes(sourceId) ? sourceId : item.source;
-                    const byline = sources.find((s) => s.id === bylineId)?.short ?? item.sourceName;
-                    return (
-                      <a
-                        key={item.link + item.title}
-                        href={item.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex gap-3.5 p-4 active:opacity-60 transition-opacity"
-                        style={{ borderColor: "var(--border)" }}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span
-                              className="text-[11px] font-bold"
-                              style={{ color: isAlert ? severityColor(item.severity) : "var(--accent)" }}
-                            >
-                              {isAlert ? "⚠ NWS Alert" : byline}
+                <Panel>
+                  <ul>
+                    {visible.map((item) => {
+                      const isAlert = item.group === "alert";
+                      const bylineId = sourceId && item.sources.includes(sourceId) ? sourceId : item.source;
+                      const byline = sources.find((s) => s.id === bylineId)?.short ?? item.sourceName;
+                      return (
+                        <li key={item.link + item.title} className="ui-row">
+                          <a href={item.link} target="_blank" rel="noopener noreferrer" className="flex gap-3.5 px-4 py-3.5 active:bg-[var(--surface-2)]">
+                            <span className="flex-1 min-w-0">
+                              <span className="flex items-center gap-2 mb-1 text-[13px]">
+                                <span className="font-bold" style={{ color: isAlert ? (severityTone(item.severity) === "danger" ? "var(--danger)" : "var(--warning)") : "var(--primary)" }}>
+                                  {isAlert ? "NWS alert" : byline}
+                                </span>
+                                <span style={{ color: "var(--text-3)" }}>{isAlert && item.expiresAt ? untilTime(item.expiresAt) : timeAgo(item.publishedAt)}</span>
+                              </span>
+                              <span className="block text-[16px] font-semibold leading-snug" style={{ color: "var(--text)" }}>
+                                {item.title}
+                              </span>
+                              {item.description && (
+                                <span className="block text-[14px] leading-relaxed mt-1 line-clamp-2" style={{ color: "var(--text-2)" }}>
+                                  {item.description}
+                                </span>
+                              )}
                             </span>
-                            <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                              {isAlert && item.expiresAt ? untilTime(item.expiresAt) : timeAgo(item.publishedAt)}
-                            </span>
-                          </div>
-                          <h3 className="text-[14px] font-bold leading-snug mb-1" style={{ color: "var(--text)" }}>
-                            {item.title}
-                          </h3>
-                          {item.description && (
-                            <p
-                              className="text-[12px] leading-relaxed overflow-hidden"
-                              style={{
-                                color: "var(--text-muted)",
-                                display: "-webkit-box",
-                                WebkitLineClamp: 2,
-                                WebkitBoxOrient: "vertical",
-                              }}
-                            >
-                              {item.description}
-                            </p>
-                          )}
-                        </div>
-                        {item.image && (
-                          <img
-                            src={item.image}
-                            alt=""
-                            className="w-[84px] h-[84px] rounded-xl object-cover shrink-0"
-                            loading="lazy"
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                            }}
-                          />
-                        )}
-                      </a>
-                    );
-                  })}
-                </div>
+                            {item.image && (
+                              <img src={item.image} alt="" className="w-[84px] h-[84px] rounded-lg object-cover shrink-0" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                            )}
+                          </a>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </Panel>
               )}
             </>
           )}
 
           {!loading && (
-            <p className="text-[11px] text-center py-4 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            <p className="text-[13px] text-center py-5 leading-relaxed" style={{ color: "var(--text-3)" }}>
               {[...NEWS_KINDS, ...SPORTS_KINDS]
                 .map((k) => {
                   const names = sources.filter((s) => s.kind === k && s.count > 0).map((s) => s.short);
@@ -434,6 +246,7 @@ export default function NewsPage() {
                 .join(" · ")}
               <br />
               Headlines refresh every 15 minutes. Tapping a story opens the source site.
+              <Icon name="external-link" size={12} className="inline ml-1 align-middle" />
             </p>
           )}
         </main>

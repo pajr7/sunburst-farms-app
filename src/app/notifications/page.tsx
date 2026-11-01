@@ -1,19 +1,33 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { getNotifications, markNotificationRead } from "@/lib/database";
 import { useAuth } from "@/lib/auth-context";
-
 import AuthGuard from "@/components/AuthGuard";
+import PageHeader from "@/components/ui/PageHeader";
+import Button from "@/components/ui/Button";
+import Icon, { type IconName } from "@/components/ui/Icon";
+import EmptyState from "@/components/ui/EmptyState";
+import { Panel, Spinner, SectionTitle, timeAgo } from "@/components/ui/Primitives";
 
-const typeIcons: Record<string, string> = {
-  claim: "\u{1F64C}",
-  comment: "\u{1F4AC}",
-  event: "\u{1F389}",
-  welcome: "\u{1F33B}",
-  approved: "\u{2705}",
-  denied: "\u{274C}",
+const TYPE_ICON: Record<string, IconName> = {
+  claim: "hand",
+  comment: "reply",
+  event: "calendar",
+  welcome: "sun",
+  approved: "check-circle",
+  denied: "x",
+  irrigation: "droplet",
+  announcement: "megaphone",
 };
+
+function hrefFor(n: any): string | null {
+  if (n.related_post_id) return `/posts/${n.related_post_id}`;
+  if (n.related_event_id) return `/events/${n.related_event_id}`;
+  if (n.type === "irrigation") return "/irrigation";
+  return null;
+}
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -21,132 +35,88 @@ export default function NotificationsPage() {
   const { user } = useAuth();
 
   useEffect(() => {
-    if (user) loadNotifications();
+    if (!user) return;
+    getNotifications(user.id)
+      .then((d) => setNotifications(d ?? []))
+      .catch(() => setNotifications([]))
+      .finally(() => setLoading(false));
   }, [user]);
 
-  async function loadNotifications() {
-    try {
-      const data = await getNotifications(user!.id);
-      setNotifications(data ?? []);
-    } catch {
-      setNotifications([]);
-    }
-    setLoading(false);
+  async function markRead(id: string) {
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    await markNotificationRead(id);
   }
 
-  async function handleMarkRead(id: string) {
-    await markNotificationRead(id);
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
+  async function markAllRead() {
+    const ids = notifications.filter((n) => !n.read).map((n) => n.id);
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    await Promise.all(ids.map(markNotificationRead));
   }
 
   const unread = notifications.filter((n) => !n.read);
   const read = notifications.filter((n) => n.read);
 
+  const Row = ({ n }: { n: any }) => {
+    const href = hrefFor(n);
+    const inner = (
+      <>
+        <span className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: n.read ? "var(--surface-2)" : "var(--primary-soft)", color: n.read ? "var(--text-3)" : "var(--primary-soft-text)" }}>
+          <Icon name={TYPE_ICON[n.type] ?? "bell"} size={19} />
+        </span>
+        <span className="flex-1 min-w-0 text-left">
+          <span className="block text-[15px] leading-snug" style={{ color: "var(--text)", fontWeight: n.read ? 400 : 600 }}>
+            {n.message}
+          </span>
+          <span className="block text-[13px] mt-0.5" style={{ color: "var(--text-3)" }}>
+            {timeAgo(n.created_at)}
+          </span>
+        </span>
+        {!n.read && <span className="w-2.5 h-2.5 rounded-full shrink-0 mt-2" style={{ background: "var(--primary)" }} aria-label="Unread" />}
+      </>
+    );
+    const cls = "ui-row flex items-start gap-3 px-4 py-3.5 w-full";
+    return href ? (
+      <Link href={href} onClick={() => !n.read && markRead(n.id)} className={cls}>
+        {inner}
+      </Link>
+    ) : (
+      <button type="button" onClick={() => !n.read && markRead(n.id)} className={cls} disabled={n.read}>
+        {inner}
+      </button>
+    );
+  };
+
   return (
     <AuthGuard>
-      <div className="flex flex-col min-h-screen pb-24 md:pb-4" style={{ background: "var(--bg)" }}>
-        <header className="sticky top-0 z-40 px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-4" style={{ background: "var(--bg)" }}>
-          <h1 className="font-extrabold tracking-tight text-2xl" style={{ color: "var(--navy)" }}>
-            Notifications
-          </h1>
-        </header>
-
-        <main className="flex-1 px-4">
+      <div className="flex flex-col min-h-screen pb-24 md:pb-8" style={{ background: "var(--bg)" }}>
+        <PageHeader title="Notifications" back="/" actions={unread.length > 0 ? <Button size="sm" variant="ghost" onClick={markAllRead}>Mark all read</Button> : undefined} />
+        <main className="flex-1 px-4 md:px-6">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-16">
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading...</p>
-            </div>
+            <Spinner />
           ) : notifications.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-up">
-              <span className="text-4xl mb-3">&#128276;</span>
-              <p className="font-extrabold tracking-tight text-xl mb-1" style={{ color: "var(--navy)" }}>No notifications yet</p>
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>You'll see updates from your neighbors here</p>
-            </div>
+            <EmptyState icon="bell" title="No notifications yet" body="Replies to your posts, RSVPs, and official updates will show up here." />
           ) : (
             <>
               {unread.length > 0 && (
-                <div className="mb-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--accent)" }}>
-                    New
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    {unread.map((notif: any, i: number) => (
-                      <button
-                        key={notif.id}
-                        onClick={() => handleMarkRead(notif.id)}
-                        className={`flex items-start gap-3 p-3.5 rounded-2xl text-left w-full animate-fade-up animate-fade-up-delay-${Math.min(i + 1, 5)}`}
-                        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                      >
-                        <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0"
-                          style={{ background: "var(--cat-events-bg)" }}
-                        >
-                          {typeIcons[notif.type] ?? "\u{1F514}"}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm leading-snug" style={{ color: "var(--text)" }}>
-                            {notif.message}
-                          </p>
-                          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                            {formatTime(notif.created_at)}
-                          </p>
-                        </div>
-                        <div className="w-2 h-2 rounded-full shrink-0 mt-2" style={{ background: "var(--accent)" }} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <>
+                  <SectionTitle>New</SectionTitle>
+                  <Panel>
+                    {unread.map((n) => <Row key={n.id} n={n} />)}
+                  </Panel>
+                </>
               )}
-
               {read.length > 0 && (
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--text-muted)" }}>
-                    Earlier
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    {read.map((notif: any) => (
-                      <div
-                        key={notif.id}
-                        className="flex items-start gap-3 p-3.5 rounded-2xl"
-                        style={{ background: "var(--card)", border: "1px solid var(--border)", opacity: 0.7 }}
-                      >
-                        <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0"
-                          style={{ background: "var(--cat-general-bg)" }}
-                        >
-                          {typeIcons[notif.type] ?? "\u{1F514}"}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm leading-snug" style={{ color: "var(--text)" }}>
-                            {notif.message}
-                          </p>
-                          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                            {formatTime(notif.created_at)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <>
+                  <SectionTitle>Earlier</SectionTitle>
+                  <Panel>
+                    {read.map((n) => <Row key={n.id} n={n} />)}
+                  </Panel>
+                </>
               )}
             </>
           )}
         </main>
-
       </div>
     </AuthGuard>
   );
-}
-
-function formatTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins} min ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} hr${hrs > 1 ? "s" : ""} ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days} day${days > 1 ? "s" : ""} ago`;
 }

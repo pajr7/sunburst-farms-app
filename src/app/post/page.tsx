@@ -1,38 +1,90 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { Category, CATEGORY_LABELS, CATEGORY_EMOJI } from "@/lib/data";
+import { Suspense } from "react";
+
+import { useState, useRef, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { type Category, CATEGORY_LABELS, CATEGORY_ICON, postKind } from "@/lib/data";
 import { createPost, uploadPostImage } from "@/lib/database";
 import { useAuth } from "@/lib/auth-context";
-
 import AuthGuard from "@/components/AuthGuard";
+import PageHeader from "@/components/ui/PageHeader";
+import Button from "@/components/ui/Button";
+import Icon, { type IconName } from "@/components/ui/Icon";
+import EmptyState from "@/components/ui/EmptyState";
+import { Field, TextInput, TextArea } from "@/components/ui/Field";
+import { Panel, Notice } from "@/components/ui/Primitives";
 
-const POST_CATEGORIES: Category[] = [
-  "produce",
-  "eggs",
-  "flowers",
-  "seeds",
-  "tools",
-  "safety",
-  "lost_found",
-  "free",
-  "recommendation",
-  "help",
-  "general",
+type Intent = "update" | "give" | "help" | "sell" | "event";
+
+const INTENTS: { value: Intent; label: string; description: string; icon: IconName; categories?: Category[]; href?: string }[] = [
+  { value: "update", label: "Share an update", description: "News, a recommendation, a safety heads-up, or a lost pet", icon: "message-circle", categories: ["general", "recommendation", "safety", "lost_found"] },
+  { value: "give", label: "Give away or lend", description: "Extra produce, eggs, plants, free stuff, or a tool to borrow", icon: "gift", categories: ["produce", "eggs", "flowers", "seeds", "free", "tools"] },
+  { value: "help", label: "Ask for help", description: "A hand with a project, a ride, a referral", icon: "hand", categories: ["help"] },
+  { value: "sell", label: "Sell an item", description: "Goes in the Marketplace with photos and a price", icon: "store", href: "/market/new" },
+  { value: "event", label: "Create an event", description: "Neighbors can RSVP and see who's going", icon: "calendar", href: "/events/new" },
 ];
 
-export default function CreatePostPage() {
+const DRAFT_KEY = "sbfe-post-draft";
+
+function CreatePostPageInner() {
+  const router = useRouter();
+  const search = useSearchParams();
+  const { user } = useAuth();
+  const [intent, setIntent] = useState<Intent | null>(null);
   const [category, setCategory] = useState<Category | null>(null);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [created, setCreated] = useState<{ id: string } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [tried, setTried] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { user } = useAuth();
-  const router = useRouter();
+
+  // Restore a draft (text only) if the page was left mid-post
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (d.intent) setIntent(d.intent);
+        if (d.category) setCategory(d.category);
+        if (d.title) setTitle(d.title);
+        if (d.body) setBody(d.body);
+      }
+    } catch {}
+    const c = search.get("category") as Category | null;
+    if (c && CATEGORY_LABELS[c]) {
+      const i = INTENTS.find((x) => x.categories?.includes(c));
+      if (i) setIntent(i.value);
+      setCategory(c);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    try {
+      if (title || body || category) sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ intent, category, title, body }));
+    } catch {}
+  }, [intent, category, title, body]);
+
+  const current = INTENTS.find((i) => i.value === intent);
+  const errors = {
+    category: !category ? "Pick one" : undefined,
+    title: !title.trim() ? "Add a short title" : undefined,
+  };
+  const valid = !errors.category && !errors.title;
+
+  function chooseIntent(i: (typeof INTENTS)[number]) {
+    if (i.href) {
+      router.push(i.href);
+      return;
+    }
+    setIntent(i.value);
+    if (i.categories?.length === 1) setCategory(i.categories[0]);
+    else if (category && !i.categories?.includes(category)) setCategory(null);
+  }
 
   function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -43,171 +95,187 @@ export default function CreatePostPage() {
     reader.readAsDataURL(file);
   }
 
-  async function handleSubmit() {
-    if (!category || !title || !user) return;
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setTried(true);
+    if (!valid || !user || loading) return;
     setLoading(true);
+    setError(null);
     try {
       let imageUrl: string | undefined;
       if (imageFile) {
         const url = await uploadPostImage(user.id, imageFile);
-        if (url) imageUrl = url;
+        if (!url) throw new Error("upload");
+        imageUrl = url;
       }
-      await createPost(user.id, category, title, body, imageUrl);
-      setSubmitted(true);
-    } catch {
-      // handle error
+      const data = await createPost(user.id, category!, title.trim(), body.trim(), imageUrl);
+      try {
+        sessionStorage.removeItem(DRAFT_KEY);
+      } catch {}
+      setCreated({ id: data.id });
+    } catch (err) {
+      setError(err instanceof Error && err.message === "upload" ? "The photo didn't upload. Try a smaller photo or remove it." : "Couldn't publish. Check your connection and try again.");
     }
     setLoading(false);
   }
 
-  if (submitted) {
+  if (created) {
     return (
       <AuthGuard>
-        <div className="flex flex-col min-h-screen pb-24 items-center justify-center px-6" style={{ background: "var(--bg)" }}>
-          <div className="text-center animate-fade-up">
-            <span className="text-5xl block mb-4">{"\u{1F33B}"}</span>
-            <h1 className="font-extrabold tracking-tight text-2xl mb-2" style={{ color: "var(--navy)" }}>
-              Shared with your neighbors!
-            </h1>
-            <p className="text-sm mb-6" style={{ color: "var(--text-muted)" }}>
-              Your post is now visible to all 281 homes in Sunburst Farms.
-            </p>
-            <button
-              onClick={() => router.push("/")}
-              className="px-6 py-3 rounded-full font-semibold text-sm"
-              style={{ background: "var(--navy)", color: "var(--white)" }}
-            >
-              Back to feed
-            </button>
-          </div>
-        </div>
+        <PageHeader title="Shared" back="/" />
+        <EmptyState
+          icon="check-circle"
+          title="Shared with your neighbors"
+          body="Your post is on the Home feed. You can edit its status or delete it from the post page."
+          action={
+            <div className="flex gap-2 flex-wrap justify-center">
+              <Button href={`/posts/${created.id}`}>View post</Button>
+              <Button href="/" variant="secondary">Back to Home</Button>
+            </div>
+          }
+        />
       </AuthGuard>
     );
   }
 
+  const kindHint = category ? postKind(category) : null;
+
   return (
     <AuthGuard>
-      <div className="flex flex-col min-h-screen pb-24 md:pb-4" style={{ background: "var(--bg)" }}>
-        <header className="px-4 pt-[calc(env(safe-area-inset-top,0px)_+_28px)] pb-3">
-          <h1 className="font-extrabold tracking-tight text-2xl" style={{ color: "var(--navy)" }}>
-            Share with neighbors
-          </h1>
-          <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
-            What do you have to offer today?
-          </p>
-        </header>
+      <div className="flex flex-col min-h-screen pb-28 md:pb-8" style={{ background: "var(--bg)" }}>
+        <PageHeader title={current ? current.label : "Share with neighbors"} subtitle={current ? undefined : "What would you like to do?"} back={intent ? true : "/"} sticky={false} />
 
-        <main className="flex-1 px-4">
-          <div className="mb-5">
-            <label className="text-[11px] font-semibold uppercase tracking-widest mb-2 block" style={{ color: "var(--text-muted)" }}>
-              Category
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {POST_CATEGORIES.map((cat) => (
+        <main className="flex-1 px-4 md:px-6">
+          {!intent ? (
+            <Panel>
+              {INTENTS.map((i) => (
                 <button
-                  key={cat}
-                  onClick={() => setCategory(cat)}
-                  className="px-3.5 py-2 rounded-xl text-sm font-medium transition-all"
-                  style={{
-                    background: category === cat ? "var(--navy)" : "var(--card)",
-                    color: category === cat ? "var(--white)" : "var(--text)",
-                    border: category === cat ? "none" : "1px solid var(--border)",
-                  }}
+                  key={i.value}
+                  type="button"
+                  onClick={() => chooseIntent(i)}
+                  className="ui-row flex items-center gap-3.5 px-4 py-4 w-full text-left min-h-[64px]"
                 >
-                  {CATEGORY_EMOJI[cat]} {CATEGORY_LABELS[cat]}
+                  <span className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--primary-soft)", color: "var(--primary-soft-text)" }}>
+                    <Icon name={i.icon} size={22} />
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[17px] font-semibold" style={{ color: "var(--text)" }}>{i.label}</span>
+                    <span className="block text-[14px] leading-snug mt-0.5" style={{ color: "var(--text-2)" }}>{i.description}</span>
+                  </span>
+                  <Icon name="chevron-right" size={18} color="var(--text-3)" />
                 </button>
               ))}
-            </div>
-          </div>
+            </Panel>
+          ) : (
+            <form onSubmit={handleSubmit} noValidate>
+              {current?.categories && current.categories.length > 1 && (
+                <div className="mb-5">
+                  <p className="text-[15px] font-semibold mb-1.5" style={{ color: "var(--text)" }}>
+                    What kind? <span style={{ color: "var(--danger)" }} aria-hidden>*</span>
+                  </p>
+                  <div role="radiogroup" aria-label="Post type" className="grid grid-cols-2 gap-2">
+                    {current.categories.map((c) => {
+                      const active = category === c;
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          onClick={() => setCategory(c)}
+                          className="flex items-center gap-2.5 px-3 h-12 rounded-lg text-[15px] font-semibold text-left"
+                          style={{
+                            background: active ? "var(--primary)" : "var(--surface)",
+                            color: active ? "var(--text-on-primary)" : "var(--text)",
+                            border: `1px solid ${active ? "var(--primary)" : "var(--border-strong)"}`,
+                          }}
+                        >
+                          <Icon name={CATEGORY_ICON[c]} size={18} />
+                          {CATEGORY_LABELS[c]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {tried && errors.category && (
+                    <p role="alert" className="text-[14px] mt-1.5 font-medium" style={{ color: "var(--danger)" }}>{errors.category}</p>
+                  )}
+                </div>
+              )}
 
-          <div className="mb-4">
-            <label className="text-[11px] font-semibold uppercase tracking-widest mb-2 block" style={{ color: "var(--text-muted)" }}>
-              Title
-            </label>
-            <input
-              type="text"
-              placeholder="e.g., Fresh eggs on the porch"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-              style={{ background: "var(--card)", color: "var(--text)", border: "1px solid var(--border)" }}
-            />
-          </div>
+              {kindHint === "alert" && (
+                <div className="mb-4">
+                  <Notice tone="danger" icon="alert-triangle">Safety alerts show at the top of the feed in red. For emergencies, call 911 first.</Notice>
+                </div>
+              )}
+              {kindHint === "giveaway" && (
+                <div className="mb-4">
+                  <Notice tone="success" icon="gift">Neighbors tap &ldquo;I&rsquo;ll take it&rdquo; to message you. Mark the post claimed from the post page when it&rsquo;s gone.</Notice>
+                </div>
+              )}
 
-          <div className="mb-4">
-            <label className="text-[11px] font-semibold uppercase tracking-widest mb-2 block" style={{ color: "var(--text-muted)" }}>
-              Details
-            </label>
-            <textarea
-              placeholder="Tell your neighbors what you're sharing, where to find it, and any other details..."
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              rows={4}
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
-              style={{ background: "var(--card)", color: "var(--text)", border: "1px solid var(--border)" }}
-            />
-          </div>
+              <Field label="Title" required error={tried ? errors.title : undefined}>
+                {(id, by) => (
+                  <TextInput
+                    id={id}
+                    describedBy={by}
+                    value={title}
+                    onChange={setTitle}
+                    invalid={tried && !!errors.title}
+                    placeholder={
+                      kindHint === "giveaway" ? "Two dozen eggs on the porch" : kindHint === "lost_found" ? "Lost: orange tabby near 54th St" : kindHint === "help" ? "Need a hand moving a couch Saturday" : kindHint === "alert" ? "Coyote on the bridle path this morning" : "What's going on?"
+                    }
+                  />
+                )}
+              </Field>
 
-          <div className="mb-6">
-            <label className="text-[11px] font-semibold uppercase tracking-widest mb-2 block" style={{ color: "var(--text-muted)" }}>
-              Photo (optional)
-            </label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,video/*"
-              onChange={handleImageSelect}
-              className="hidden"
-            />
-            {imagePreview ? (
-              <div className="relative">
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="w-full rounded-xl object-cover"
-                  style={{ maxHeight: 240 }}
-                />
-                <button
-                  onClick={() => { setImageFile(null); setImagePreview(null); }}
-                  className="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
-                  style={{ background: "var(--navy)", color: "var(--white)" }}
-                >
-                  X
-                </button>
+              <Field label="Details" optional hint={kindHint === "lost_found" ? "Where and when, what they look like, how to reach you." : kindHint === "giveaway" ? "Where to pick up and when it's available." : undefined}>
+                {(id, by) => <TextArea id={id} describedBy={by} value={body} onChange={setBody} rows={5} />}
+              </Field>
+
+              <div className="mb-5">
+                <p className="text-[15px] font-semibold mb-1.5" style={{ color: "var(--text)" }}>
+                  Photo <span className="font-normal" style={{ color: "var(--text-3)" }}>(optional)</span>
+                </p>
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="sr-only" id="post-photo" />
+                {imagePreview ? (
+                  <div className="relative">
+                    <img src={imagePreview} alt="Preview" className="w-full rounded-xl object-cover" style={{ maxHeight: 260, border: "1px solid var(--border)" }} />
+                    <button type="button" onClick={() => { setImageFile(null); setImagePreview(null); }} className="absolute top-2 right-2 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: "var(--text)", color: "white" }} aria-label="Remove photo">
+                      <Icon name="x" size={18} strokeWidth={2.5} />
+                    </button>
+                  </div>
+                ) : (
+                  <label htmlFor="post-photo" className="flex items-center gap-3 px-4 h-14 rounded-xl cursor-pointer" style={{ background: "var(--surface)", border: "1.5px dashed var(--border-strong)", color: "var(--text-2)" }}>
+                    <Icon name="image" size={22} />
+                    <span className="text-[15px] font-semibold">Add a photo</span>
+                  </label>
+                )}
               </div>
-            ) : (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full py-8 rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer"
-                style={{ background: "var(--card)", border: "2px dashed var(--text-muted)" }}
-              >
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <polyline points="21 15 16 10 5 21" />
-                </svg>
-                <span className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
-                  Tap to add a photo or video
-                </span>
-              </button>
-            )}
-          </div>
 
-          <button
-            onClick={handleSubmit}
-            disabled={loading || !category || !title}
-            className="w-full py-3.5 rounded-full font-bold text-sm uppercase tracking-wider transition-opacity"
-            style={{
-              background: category && title ? "var(--navy)" : "var(--text-muted)",
-              color: "var(--white)",
-              opacity: category && title && !loading ? 1 : 0.5,
-            }}
-          >
-            {loading ? "Posting..." : "Share with Sunburst Farms"}
-          </button>
+              {error && (
+                <div className="mb-4">
+                  <Notice tone="danger" icon="alert-triangle">{error}</Notice>
+                </div>
+              )}
+
+              <Button type="submit" full size="lg" loading={loading}>
+                {loading ? "Publishing" : "Share with neighbors"}
+              </Button>
+              <p className="text-[13px] text-center mt-3" style={{ color: "var(--text-3)" }}>
+                Visible to verified Sunburst Farms East residents only.
+              </p>
+            </form>
+          )}
         </main>
-
       </div>
     </AuthGuard>
+  );
+}
+
+export default function CreatePostPage() {
+  return (
+    <Suspense fallback={null}>
+      <CreatePostPageInner />
+    </Suspense>
   );
 }
